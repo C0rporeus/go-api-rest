@@ -1,0 +1,21 @@
+# Binarios compilados
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# Archivos de salida de logs
+*.log
+
+# Dependencias
+/vendor
+Gopkg.lock
+
+# Archivos de configuración local
+.env
+.vscode/
+
+# Otros archivos y directorios
+.DS_Store
