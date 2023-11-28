@@ -24,6 +24,7 @@ func SaveUser(dbClient *dynamodb.Client, user userModel.User) error {
 			"UserId":   &types.AttributeValueMemberS{Value: user.UserId},
 			"email":    &types.AttributeValueMemberS{Value: user.Email},
 			"password": &types.AttributeValueMemberS{Value: user.Password},
+			"username": &types.AttributeValueMemberS{Value: user.UserName},
 		},
 		TableName: aws.String("users"),
 	}
@@ -111,7 +112,7 @@ func Register(c *fiber.Ctx, dbClient *dynamodb.Client) error {
 	if err != nil {
 		return err
 	}
-	token, err := jwtManager.GenerateToken(user.UserId)
+	token, err := jwtManager.GenerateToken(user.UserId, user.UserName)
 	if err != nil {
 		return err
 	}
@@ -138,7 +139,7 @@ func Login(c *fiber.Ctx, dbClient *dynamodb.Client) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unauthorized"})
 	}
 
-	token, err := jwtManager.GenerateToken(user.UserId)
+	token, err := jwtManager.GenerateToken(user.UserId, user.UserName)
 	if err != nil {
 		return err
 	}
