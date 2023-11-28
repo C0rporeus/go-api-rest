@@ -1,12 +1,13 @@
 package jwtManager
 
 import (
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt"
 )
 
-var jwtKey = []byte("secret")
+var jwtKey = []byte(os.Getenv("TOKEN_SECRET"))
 
 type Claims struct {
 	UserId string
