@@ -1,31 +1,37 @@
 package main
 
 import (
-	"./src/api/handlers"
-	"./src/config"
+	"backend-yonathan/src/api/handlers"
+	config "backend-yonathan/src/config"
+	"log"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/joho/godotenv"
 )
+
+func init() {
+    if err := godotenv.Load(); err != nil {
+        log.Fatal("Error loading .env file")
+    }
+}
 
 func main() {
 	app := fiber.New()
-	dbClient, s3Client, err := config.ConfigAWS()
-	if err != nil {
-		logger.Fatal(err)
-		panic(err)
-	}
 
-	handlers.SetupRoutes(app, dbClient, s3Client)
-
-	app.Use(cors.New(cors.Config{
-		AllowCredentials: true,
-	}))
-
+	app.Use(cors.New())
 	app.Use(logger.New())
+
+	// usa la conexion a dynamo db que esta en la ruta src/api/services/auth.service.go
+	config.ConfigAWS()
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.SendString("¡Hola, mundo desde Fiber!")
 	})
-	app.Listen(":3000")
+
+	handlers.SetupRoutes(app)
+
+	if err := app.Listen(":3100"); err != nil {
+		log.Fatalf("Error al iniciar el servidor: %v", err)
+	}
 }
