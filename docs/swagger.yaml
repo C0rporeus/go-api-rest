@@ -1,0 +1,69 @@
+definitions:
+  userModel.User:
+    description: Modelo de usuario.
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+      userId:
+        type: string
+      username:
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /api/login:
+    post:
+      consumes:
+      - application/json
+      description: Login de usuarios api Yonathan Gutierrez Dev
+      parameters:
+      - description: User
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/userModel.User'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/userModel.User'
+        "400":
+          description: bad request
+          schema:
+            type: string
+      summary: Login de usuarios
+      tags:
+      - Auth
+  /api/register:
+    post:
+      consumes:
+      - application/json
+      description: Registro de usuarios api Yonathan Gutierrez Dev
+      parameters:
+      - description: User
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/userModel.User'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/userModel.User'
+        "400":
+          description: bad request
+          schema:
+            type: string
+      summary: Registro de usuarios
+      tags:
+      - Auth
+swagger: "2.0"

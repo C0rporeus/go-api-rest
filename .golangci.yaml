@@ -1,4 +1,3 @@
-# Ejemplo de .golangci.yml
 lint:
   enable-all: true
   disable:
