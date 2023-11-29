@@ -13,12 +13,14 @@ Esta usa entre sus tecnologias:
 [JWT]: https://jwt.io/
 [AWS DynamoDB]: https://aws.amazon.com/es/dynamodb/
 [AWS S3]: https://aws.amazon.com/es/s3/
+[swag init]: https://github.com/swaggo/swag
 
 - [Go Fiber] - Framework web para [Go]
 - [Go] - Lenguaje de programación
 - [JWT] - Autenticación y autorización
 - [AWS DynamoDB] - Base de datos no relacional
 - [AWS S3] - Almacenamiento de archivos
+- [swag init] - Documentación de API
 
 incluir variables de entorno
 
@@ -44,3 +46,38 @@ air
 go run main.go
 ```
 
+## Documentación de API
+
+Para generar la documentación de la API, se usa [swag init]
+
+```bash
+swag init
+```
+El esquema de datos se debe dar a nivel de el router, en el archivo `docs/swagger.json`
+
+```
+// @Summary Login de usuarios
+// @Description Login de usuarios api Yonathan Gutierrez Dev
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param user body userModel.User true "User"
+// @Success 200 {object} userModel.User
+// @Failure 400 {string} string "bad request"
+// @Router /api/login [post]
+```
+
+Igualmente el modelo de datos se debe dar a nivel de el modelo, en el archivo `docs/swagger.json`
+
+```
+// User model
+// @Description Modelo de usuario.
+type User struct {
+    ID        string `json:"id"`
+    Email     string `json:"email"`
+    Password  string `json:"password"`
+    FirstName string `json:"firstName"`
+    LastName  string `json:"lastName"`
+    Role      string `json:"role"`
+}
+```
