@@ -2,7 +2,7 @@
 
 ## Backend básico, sitio web personal
 
-Se trata de aplicación que resolverá sitio web personal orientado a publicar información personal y técnica para quien pueda interesar en temas tecnológicos en las áreas y temas de intereses para ingenieros en diferentes ámbitos e intereses.
+Se trata de aplicación que resolverá sitio web personal orientado a publicar información personal y técnica para quien pueda interesar en temas tecnológicos en las áreas y temas de intereses para ingenieros en diferentes ámbitos.
 
 Esta usa entre sus tecnologias:
 
