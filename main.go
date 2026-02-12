@@ -2,8 +2,8 @@ package main
 
 import (
 	"backend-yonathan/src/api/handlers"
-	config "backend-yonathan/src/config"
 	"log"
+	"os"
 
 	_ "backend-yonathan/docs"
 
@@ -26,12 +26,15 @@ func main() {
 	app.Use(cors.New())
 	app.Use(logger.New())
 
-	// usa la conexion a dynamo db que esta en la ruta src/api/services/auth.service.go
-	config.ConfigAWS()
-
 	handlers.SetupRoutes(app)
 	app.Get("/swagger/*", swagger.HandlerDefault)
-	if err := app.Listen(":3100"); err != nil {
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "3100"
+	}
+
+	if err := app.Listen(":" + port); err != nil {
 		log.Fatalf("Error al iniciar el servidor: %v", err)
 	}
 }
