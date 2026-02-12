@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	jwtMiddleware "backend-yonathan/src/api/middlewares"
 	authServices "backend-yonathan/src/api/services"
 	"backend-yonathan/src/config"
+	"backend-yonathan/src/pkg/apiresponse"
 	"log"
 
 	"github.com/gofiber/fiber/v2"
@@ -43,7 +45,26 @@ func SetupRoutes(app *fiber.App) {
 	if err != nil {
 		log.Fatalf("Error al configurar AWS: %v", err)
 	}
-	app.Post("/api/login", func(c *fiber.Ctx) error {
+
+	public := app.Group("/api")
+	public.Post("/login", func(c *fiber.Ctx) error {
 		return authServices.Login(c, dbClient)
+	})
+	public.Post("/register", func(c *fiber.Ctx) error {
+		return authServices.Register(c, dbClient)
+	})
+
+	tools := public.Group("/tools")
+	tools.Post("/base64/encode", authServices.EncodeBase64)
+	tools.Post("/base64/decode", authServices.DecodeBase64)
+	tools.Get("/uuid/v4", authServices.GenerateUUIDv4)
+	tools.Post("/certs/self-signed", authServices.GenerateSelfSignedCert)
+
+	private := app.Group("/api/private", jwtMiddleware.JWTProtected())
+	private.Get("/me", func(c *fiber.Ctx) error {
+		return apiresponse.Success(c, fiber.Map{
+			"userId":   c.Locals("userId"),
+			"username": c.Locals("username"),
+		})
 	})
 }

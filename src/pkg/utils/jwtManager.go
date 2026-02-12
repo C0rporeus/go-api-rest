@@ -1,41 +1,61 @@
 package jwtManager
 
 import (
+	"errors"
 	"os"
 	"time"
 
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v4"
 )
 
-var jwtKey = []byte(os.Getenv("TOKEN_SECRET"))
-
 type Claims struct {
-	UserId   string
-	username string
-	jwt.StandardClaims
+	UserID   string `json:"userId"`
+	Username string `json:"username"`
+	jwt.RegisteredClaims
 }
 
-func GenerateToken(userId string, username string) (string, error) {
-	expirationTime := time.Now().Add(5 * time.Minute)
+func jwtKey() ([]byte, error) {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		return nil, errors.New("JWT_SECRET is not set")
+	}
+	return []byte(secret), nil
+}
+
+func GenerateToken(userID string, username string) (string, error) {
+	key, err := jwtKey()
+	if err != nil {
+		return "", err
+	}
+
+	expirationTime := time.Now().Add(24 * time.Hour)
 	claims := &Claims{
-		UserId:   userId,
-		username: username,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: expirationTime.Unix(),
-			IssuedAt:  time.Now().Unix(),
+		UserID:   userID,
+		Username: username,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(jwtKey)
+	tokenString, err := token.SignedString(key)
 
 	return tokenString, err
 }
 
-func VerificateToken(tokenString string) (*jwt.Token, error) {
+func VerificateToken(tokenString string) (*jwt.Token, *Claims, error) {
+	key, err := jwtKey()
+	if err != nil {
+		return nil, nil, err
+	}
+
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
+		return key, nil
 	})
+	if err != nil {
+		return nil, nil, err
+	}
 
-	return token, err
+	return token, claims, nil
 }

@@ -1,10 +1,12 @@
 package authServices
 
 import (
+	"backend-yonathan/src/pkg/apiresponse"
 	userModel "backend-yonathan/src/models"
 	jwtManager "backend-yonathan/src/pkg/utils"
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
@@ -95,29 +97,29 @@ func GetUserByEmail(dbClient *dynamodb.Client, email string) (userModel.User, er
 func Register(c *fiber.Ctx, dbClient *dynamodb.Client) error {
 	var user userModel.User
 	if err := c.BodyParser(&user); err != nil {
-		return err
+		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_payload", "Payload invalido", err.Error())
 	}
 
 	_, err := GetUserByEmail(dbClient, user.Email)
 	if err == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "El usuario ya existe"})
+		return apiresponse.Error(c, fiber.StatusBadRequest, "user_already_exists", "El usuario ya existe", nil)
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return err
+		return apiresponse.Error(c, fiber.StatusInternalServerError, "password_hash_failed", "No se pudo procesar la contrasena", err.Error())
 	}
 	user.Password = string(hashedPassword)
 	err = SaveUser(dbClient, user)
 	if err != nil {
-		return err
+		return apiresponse.Error(c, fiber.StatusInternalServerError, "save_user_failed", "No se pudo registrar el usuario", err.Error())
 	}
 	token, err := jwtManager.GenerateToken(user.UserId, user.UserName)
 	if err != nil {
-		return err
+		return apiresponse.Error(c, fiber.StatusInternalServerError, "token_generation_failed", "No se pudo generar el token", err.Error())
 	}
 
-	return c.JSON(fiber.Map{"token": token})
+	return apiresponse.Success(c, fiber.Map{"token": token})
 }
 
 func Login(c *fiber.Ctx, dbClient *dynamodb.Client) error {
@@ -126,22 +128,22 @@ func Login(c *fiber.Ctx, dbClient *dynamodb.Client) error {
 		Password string `json:"password"`
 	}
 	if err := c.BodyParser(&loginRequest); err != nil {
-		return err
+		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_payload", "Payload invalido", err.Error())
 	}
 
 	user, err := GetUserByEmail(dbClient, loginRequest.Email)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unauthorized"})
+		return apiresponse.Error(c, fiber.StatusUnauthorized, "invalid_credentials", "Unauthorized", nil)
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginRequest.Password))
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unauthorized"})
+		return apiresponse.Error(c, fiber.StatusUnauthorized, "invalid_credentials", "Unauthorized", nil)
 	}
 
 	token, err := jwtManager.GenerateToken(user.UserId, user.UserName)
 	if err != nil {
-		return err
+		return apiresponse.Error(c, fiber.StatusInternalServerError, "token_generation_failed", "No se pudo generar el token", err.Error())
 	}
-	return c.JSON(fiber.Map{"token": token})
+	return apiresponse.Success(c, fiber.Map{"token": token})
 }
