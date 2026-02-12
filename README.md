@@ -50,6 +50,11 @@ Endpoints principales:
 - `POST /api/private/experiences` (admin)
 - `PUT /api/private/experiences/:id` (admin)
 - `DELETE /api/private/experiences/:id` (admin)
+- `GET /api/private/ops/metrics` (admin/ops, observabilidad basica)
+- `GET /api/private/ops/alerts` (admin/ops, estado `ok|warn|critical`)
+- `GET /api/private/ops/health` (admin/ops, recomendaciones operativas)
+- `GET /api/private/ops/history` (admin/ops, historial reciente de estado)
+- `GET /api/private/ops/summary` (admin/ops, resumen agregado para semaforo operativo)
 
 Puede inicializar esta app con el comando `air` o `go run main.go`
 

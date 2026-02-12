@@ -3,10 +3,12 @@ package main
 import (
 	"backend-yonathan/src/api/handlers"
 	"backend-yonathan/src/pkg/apiresponse"
+	"backend-yonathan/src/pkg/telemetry"
 	"encoding/json"
 	"errors"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	_ "backend-yonathan/docs"
@@ -60,6 +62,12 @@ func main() {
 		if err != nil {
 			logPayload["error"] = err.Error()
 		}
+
+		statusCode := c.Response().StatusCode()
+		path := c.Path()
+		isAuthFailure := statusCode == fiber.StatusUnauthorized &&
+			(strings.HasPrefix(path, "/api/private") || strings.HasPrefix(path, "/api/login"))
+		telemetry.TrackRequest(statusCode, isAuthFailure)
 
 		if encoded, marshalErr := json.Marshal(logPayload); marshalErr == nil {
 			log.Println(string(encoded))

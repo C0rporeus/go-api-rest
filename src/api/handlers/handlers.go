@@ -5,6 +5,7 @@ import (
 	authServices "backend-yonathan/src/api/services"
 	"backend-yonathan/src/config"
 	"backend-yonathan/src/pkg/apiresponse"
+	"backend-yonathan/src/pkg/telemetry"
 	"log"
 
 	"github.com/gofiber/fiber/v2"
@@ -72,4 +73,19 @@ func SetupRoutes(app *fiber.App) {
 	private.Post("/experiences", authServices.CreateExperience)
 	private.Put("/experiences/:id", authServices.UpdateExperience)
 	private.Delete("/experiences/:id", authServices.DeleteExperience)
+	private.Get("/ops/metrics", func(c *fiber.Ctx) error {
+		return apiresponse.Success(c, telemetry.Snapshot())
+	})
+	private.Get("/ops/alerts", func(c *fiber.Ctx) error {
+		return apiresponse.Success(c, telemetry.Alerts())
+	})
+	private.Get("/ops/health", func(c *fiber.Ctx) error {
+		return apiresponse.Success(c, telemetry.Health())
+	})
+	private.Get("/ops/history", func(c *fiber.Ctx) error {
+		return apiresponse.Success(c, telemetry.History())
+	})
+	private.Get("/ops/summary", func(c *fiber.Ctx) error {
+		return apiresponse.Success(c, telemetry.Summary())
+	})
 }
