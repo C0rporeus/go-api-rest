@@ -17,6 +17,18 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var (
+	putItemFunc = func(dbClient *dynamodb.Client, input *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error) {
+		return dbClient.PutItem(context.Background(), input)
+	}
+	getItemFunc = func(dbClient *dynamodb.Client, input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
+		return dbClient.GetItem(context.Background(), input)
+	}
+	queryFunc = func(dbClient *dynamodb.Client, input *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
+		return dbClient.Query(context.Background(), input)
+	}
+)
+
 func SaveUser(dbClient *dynamodb.Client, user userModel.User) error {
 	if user.UserId == "" {
 		user.UserId = uuid.New().String()
@@ -34,7 +46,7 @@ func SaveUser(dbClient *dynamodb.Client, user userModel.User) error {
 		},
 		TableName: aws.String(tableName),
 	}
-	_, err := dbClient.PutItem(context.Background(), input)
+	_, err := putItemFunc(dbClient, input)
 	if err != nil {
 		return err
 	}
@@ -54,7 +66,7 @@ func GetUserById(dbClient *dynamodb.Client, id string) (userModel.User, error) {
 		},
 	}
 
-	result, err := dbClient.GetItem(context.Background(), input)
+	result, err := getItemFunc(dbClient, input)
 	if err != nil {
 		return user, err
 	}
@@ -89,7 +101,7 @@ func GetUserByEmail(dbClient *dynamodb.Client, email string) (userModel.User, er
 			},
 		},
 	}
-	result, err := dbClient.Query(context.Background(), input)
+	result, err := queryFunc(dbClient, input)
 
 	if err != nil {
 		return user, err
