@@ -36,6 +36,16 @@ export AWS_REGION=us-east-1
 export AWS_S3_BUCKET=bucket
 ```
 
+Endpoints principales:
+
+- `POST /api/login`
+- `POST /api/register`
+- `GET /api/tools/uuid/v4`
+- `POST /api/tools/base64/encode`
+- `POST /api/tools/base64/decode`
+- `POST /api/tools/certs/self-signed`
+- `GET /api/private/me` (requiere `Authorization: Bearer <token>`)
+
 Puede inicializar esta app con el comando `air` o `go run main.go`
 
 ```bash
