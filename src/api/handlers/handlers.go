@@ -59,6 +59,7 @@ func SetupRoutes(app *fiber.App) {
 	tools.Post("/base64/decode", authServices.DecodeBase64)
 	tools.Get("/uuid/v4", authServices.GenerateUUIDv4)
 	tools.Post("/certs/self-signed", authServices.GenerateSelfSignedCert)
+	public.Get("/experiences", authServices.ListPublicExperiences)
 
 	private := app.Group("/api/private", jwtMiddleware.JWTProtected())
 	private.Get("/me", func(c *fiber.Ctx) error {
@@ -67,4 +68,8 @@ func SetupRoutes(app *fiber.App) {
 			"username": c.Locals("username"),
 		})
 	})
+	private.Get("/experiences", authServices.ListAllExperiences)
+	private.Post("/experiences", authServices.CreateExperience)
+	private.Put("/experiences/:id", authServices.UpdateExperience)
+	private.Delete("/experiences/:id", authServices.DeleteExperience)
 }

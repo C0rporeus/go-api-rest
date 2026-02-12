@@ -45,6 +45,11 @@ Endpoints principales:
 - `POST /api/tools/base64/decode`
 - `POST /api/tools/certs/self-signed`
 - `GET /api/private/me` (requiere `Authorization: Bearer <token>`)
+- `GET /api/experiences` (contenido publico del portafolio)
+- `GET /api/private/experiences` (admin)
+- `POST /api/private/experiences` (admin)
+- `PUT /api/private/experiences/:id` (admin)
+- `DELETE /api/private/experiences/:id` (admin)
 
 Puede inicializar esta app con el comando `air` o `go run main.go`
 
