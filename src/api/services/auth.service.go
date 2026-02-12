@@ -21,14 +21,18 @@ func SaveUser(dbClient *dynamodb.Client, user userModel.User) error {
 	if user.UserId == "" {
 		user.UserId = uuid.New().String()
 	}
+	tableName := os.Getenv("DYNAMO_DB_TABLE")
+	if tableName == "" {
+		tableName = "users"
+	}
 	input := &dynamodb.PutItemInput{
 		Item: map[string]types.AttributeValue{
-			"UserId":   &types.AttributeValueMemberS{Value: user.UserId},
+			"userId":   &types.AttributeValueMemberS{Value: user.UserId},
 			"email":    &types.AttributeValueMemberS{Value: user.Email},
 			"password": &types.AttributeValueMemberS{Value: user.Password},
 			"username": &types.AttributeValueMemberS{Value: user.UserName},
 		},
-		TableName: aws.String("users"),
+		TableName: aws.String(tableName),
 	}
 	_, err := dbClient.PutItem(context.Background(), input)
 	if err != nil {
@@ -39,8 +43,12 @@ func SaveUser(dbClient *dynamodb.Client, user userModel.User) error {
 
 func GetUserById(dbClient *dynamodb.Client, id string) (userModel.User, error) {
 	var user userModel.User
+	tableName := os.Getenv("DYNAMO_DB_TABLE")
+	if tableName == "" {
+		tableName = "users"
+	}
 	input := &dynamodb.GetItemInput{
-		TableName: aws.String("users"),
+		TableName: aws.String(tableName),
 		Key: map[string]types.AttributeValue{
 			"userId": &types.AttributeValueMemberS{Value: id},
 		},
@@ -65,8 +73,12 @@ func GetUserById(dbClient *dynamodb.Client, id string) (userModel.User, error) {
 
 func GetUserByEmail(dbClient *dynamodb.Client, email string) (userModel.User, error) {
 	var user userModel.User
+	tableName := os.Getenv("DYNAMO_DB_TABLE")
+	if tableName == "" {
+		tableName = "users"
+	}
 	input := &dynamodb.QueryInput{
-		TableName: aws.String("users"),
+		TableName: aws.String(tableName),
 		IndexName: aws.String("email-index"),
 		KeyConditions: map[string]types.Condition{
 			"email": {
