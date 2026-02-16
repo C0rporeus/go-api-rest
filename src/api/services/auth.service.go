@@ -1,12 +1,13 @@
 package authServices
 
 import (
-	"backend-yonathan/src/pkg/apiresponse"
 	userModel "backend-yonathan/src/models"
+	"backend-yonathan/src/pkg/apiresponse"
+	"backend-yonathan/src/pkg/constants"
 	jwtManager "backend-yonathan/src/pkg/utils"
 	"context"
 	"fmt"
-	"os"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
@@ -33,12 +34,10 @@ func SaveUser(dbClient *dynamodb.Client, user userModel.User) error {
 	if user.UserId == "" {
 		user.UserId = uuid.New().String()
 	}
-	tableName := os.Getenv("DYNAMO_DB_TABLE")
-	if tableName == "" {
-		tableName = "users"
-	}
+	tableName := constants.TableName()
 	input := &dynamodb.PutItemInput{
 		Item: map[string]types.AttributeValue{
+			"UserId":   &types.AttributeValueMemberS{Value: user.UserId},
 			"userId":   &types.AttributeValueMemberS{Value: user.UserId},
 			"email":    &types.AttributeValueMemberS{Value: user.Email},
 			"password": &types.AttributeValueMemberS{Value: user.Password},
@@ -55,20 +54,36 @@ func SaveUser(dbClient *dynamodb.Client, user userModel.User) error {
 
 func GetUserById(dbClient *dynamodb.Client, id string) (userModel.User, error) {
 	var user userModel.User
-	tableName := os.Getenv("DYNAMO_DB_TABLE")
-	if tableName == "" {
-		tableName = "users"
-	}
-	input := &dynamodb.GetItemInput{
-		TableName: aws.String(tableName),
-		Key: map[string]types.AttributeValue{
-			"userId": &types.AttributeValueMemberS{Value: id},
-		},
+	tableName := constants.TableName()
+	buildInput := func(keyName string) *dynamodb.GetItemInput {
+		return &dynamodb.GetItemInput{
+			TableName: aws.String(tableName),
+			Key: map[string]types.AttributeValue{
+				keyName: &types.AttributeValueMemberS{Value: id},
+			},
+		}
 	}
 
+	input := buildInput("UserId")
 	result, err := getItemFunc(dbClient, input)
 	if err != nil {
+		// Compatibilidad con tablas legacy que usan "userId".
+		if strings.Contains(err.Error(), "Missing the key userId") {
+			input = buildInput("userId")
+			result, err = getItemFunc(dbClient, input)
+		}
+	}
+
+	if err != nil {
 		return user, err
+	}
+
+	if result.Item == nil {
+		input = buildInput("userId")
+		result, err = getItemFunc(dbClient, input)
+		if err != nil {
+			return user, err
+		}
 	}
 
 	if result.Item == nil {
@@ -85,13 +100,10 @@ func GetUserById(dbClient *dynamodb.Client, id string) (userModel.User, error) {
 
 func GetUserByEmail(dbClient *dynamodb.Client, email string) (userModel.User, error) {
 	var user userModel.User
-	tableName := os.Getenv("DYNAMO_DB_TABLE")
-	if tableName == "" {
-		tableName = "users"
-	}
+	tableName := constants.TableName()
 	input := &dynamodb.QueryInput{
 		TableName: aws.String(tableName),
-		IndexName: aws.String("email-index"),
+		IndexName: aws.String(constants.DynamoDBEmailIndex),
 		KeyConditions: map[string]types.Condition{
 			"email": {
 				ComparisonOperator: types.ComparisonOperatorEq,

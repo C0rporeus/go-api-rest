@@ -2,6 +2,7 @@ package authServices
 
 import (
 	"backend-yonathan/src/pkg/apiresponse"
+	"backend-yonathan/src/pkg/constants"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -69,19 +70,19 @@ func GenerateSelfSignedCert(c *fiber.Ctx) error {
 	}
 
 	if payload.CommonName == "" {
-		payload.CommonName = "localhost"
+		payload.CommonName = constants.DefaultCertCommonName
 	}
 	if payload.Organization == "" {
-		payload.Organization = "PortfolioTools"
+		payload.Organization = constants.DefaultCertOrganization
 	}
 	if payload.ValidDays <= 0 {
-		payload.ValidDays = 365
+		payload.ValidDays = constants.DefaultCertValidDays
 	}
 	if payload.Password == "" {
-		payload.Password = "changeit"
+		payload.Password = constants.DefaultCertPassword
 	}
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err := rsa.GenerateKey(rand.Reader, constants.DefaultCertKeyBits)
 	if err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "key_generation_failed", "No se pudo generar la llave privada", err.Error())
 	}

@@ -1,6 +1,7 @@
 package jwtManager
 
 import (
+	"backend-yonathan/src/pkg/constants"
 	"errors"
 	"os"
 	"time"
@@ -28,7 +29,7 @@ func GenerateToken(userID string, username string) (string, error) {
 		return "", err
 	}
 
-	expirationTime := time.Now().Add(24 * time.Hour)
+	expirationTime := time.Now().Add(constants.JWTExpiryDuration())
 	claims := &Claims{
 		UserID:   userID,
 		Username: username,

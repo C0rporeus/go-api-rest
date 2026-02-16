@@ -1,8 +1,11 @@
 package authServices
 
 import (
-	"backend-yonathan/src/pkg/apiresponse"
 	userModel "backend-yonathan/src/models"
+	"backend-yonathan/src/pkg/apiresponse"
+	"backend-yonathan/src/pkg/constants"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -14,7 +17,7 @@ import (
 	"github.com/google/uuid"
 )
 
-var experienceStoreLock sync.Mutex
+var experienceStoreLock sync.RWMutex
 
 func experiencesFilePath() string {
 	dataDir := os.Getenv("PORTFOLIO_DATA_DIR")
@@ -46,35 +49,83 @@ func loadExperiences() ([]userModel.Experience, error) {
 
 func saveExperiences(experiences []userModel.Experience) error {
 	filePath := experiencesFilePath()
-	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filePath), constants.DirPermission); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(experiences, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filePath, data, 0o644)
+	return os.WriteFile(filePath, data, constants.FilePermission)
 }
 
 type experiencePayload struct {
 	Title      string   `json:"title"`
 	Summary    string   `json:"summary"`
 	Body       string   `json:"body"`
+	ImageURLs  []string `json:"imageUrls"`
 	Tags       []string `json:"tags"`
 	Visibility string   `json:"visibility"`
 }
 
 func normalizeVisibility(visibility string) string {
 	v := strings.ToLower(strings.TrimSpace(visibility))
-	if v != "private" {
-		return "public"
+	if v != constants.VisibilityPrivate {
+		return constants.VisibilityPublic
 	}
 	return v
 }
 
+func normalizeImageURLs(urls []string) []string {
+	if len(urls) == 0 {
+		return []string{}
+	}
+	normalized := make([]string, 0, len(urls))
+	for _, url := range urls {
+		clean := strings.TrimSpace(url)
+		if clean == "" {
+			continue
+		}
+		normalized = append(normalized, clean)
+	}
+	return normalized
+}
+
+func buildCollectionETag(items []userModel.Experience) string {
+	payload, err := json.Marshal(items)
+	if err != nil {
+		return ""
+	}
+	sum := sha1.Sum(payload)
+	return "W/\"" + hex.EncodeToString(sum[:]) + "\""
+}
+
+func matchesIfNoneMatchHeader(ifNoneMatch, etag string) bool {
+	if etag == "" {
+		return false
+	}
+	if strings.TrimSpace(ifNoneMatch) == "*" {
+		return true
+	}
+
+	for _, candidate := range strings.Split(ifNoneMatch, ",") {
+		if strings.TrimSpace(candidate) == etag {
+			return true
+		}
+	}
+	return false
+}
+
+func setPublicCollectionCacheHeaders(c *fiber.Ctx, etag string) {
+	c.Set("Cache-Control", constants.PublicCollectionCacheControl)
+	if etag != "" {
+		c.Set("ETag", etag)
+	}
+}
+
 func ListPublicExperiences(c *fiber.Ctx) error {
-	experienceStoreLock.Lock()
-	defer experienceStoreLock.Unlock()
+	experienceStoreLock.RLock()
+	defer experienceStoreLock.RUnlock()
 
 	experiences, err := loadExperiences()
 	if err != nil {
@@ -83,16 +134,23 @@ func ListPublicExperiences(c *fiber.Ctx) error {
 
 	publicExperiences := make([]userModel.Experience, 0, len(experiences))
 	for _, item := range experiences {
-		if item.Visibility == "public" {
+		if item.Visibility == constants.VisibilityPublic {
 			publicExperiences = append(publicExperiences, item)
 		}
 	}
+
+	etag := buildCollectionETag(publicExperiences)
+	setPublicCollectionCacheHeaders(c, etag)
+	if matchesIfNoneMatchHeader(c.Get("If-None-Match"), etag) {
+		return c.SendStatus(fiber.StatusNotModified)
+	}
+
 	return apiresponse.Success(c, fiber.Map{"items": publicExperiences})
 }
 
 func ListAllExperiences(c *fiber.Ctx) error {
-	experienceStoreLock.Lock()
-	defer experienceStoreLock.Unlock()
+	experienceStoreLock.RLock()
+	defer experienceStoreLock.RUnlock()
 
 	experiences, err := loadExperiences()
 	if err != nil {
@@ -124,6 +182,7 @@ func CreateExperience(c *fiber.Ctx) error {
 		Title:      strings.TrimSpace(payload.Title),
 		Summary:    strings.TrimSpace(payload.Summary),
 		Body:       strings.TrimSpace(payload.Body),
+		ImageURLs:  normalizeImageURLs(payload.ImageURLs),
 		Tags:       payload.Tags,
 		Visibility: normalizeVisibility(payload.Visibility),
 		CreatedAt:  now,
@@ -164,6 +223,7 @@ func UpdateExperience(c *fiber.Ctx) error {
 			}
 			item.Summary = strings.TrimSpace(payload.Summary)
 			item.Body = strings.TrimSpace(payload.Body)
+			item.ImageURLs = normalizeImageURLs(payload.ImageURLs)
 			item.Tags = payload.Tags
 			item.Visibility = normalizeVisibility(payload.Visibility)
 			item.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
