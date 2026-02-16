@@ -5,6 +5,7 @@ type Experience struct {
 	Title      string   `json:"title"`
 	Summary    string   `json:"summary"`
 	Body       string   `json:"body"`
+	ImageURLs  []string `json:"imageUrls"`
 	Tags       []string `json:"tags"`
 	Visibility string   `json:"visibility"`
 	CreatedAt  string   `json:"createdAt"`

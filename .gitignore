@@ -19,3 +19,5 @@ Gopkg.lock
 
 # Otros archivos y directorios
 .DS_Store
+coverage.out
+data/
