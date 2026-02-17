@@ -44,7 +44,7 @@ func GenerateToken(userID string, username string) (string, error) {
 	return tokenString, err
 }
 
-func VerificateToken(tokenString string) (*jwt.Token, *Claims, error) {
+func VerifyToken(tokenString string) (*jwt.Token, *Claims, error) {
 	key, err := jwtKey()
 	if err != nil {
 		return nil, nil, err

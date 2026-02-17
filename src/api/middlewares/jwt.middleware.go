@@ -21,7 +21,7 @@ func JWTProtected() fiber.Handler {
 			return apiresponse.Error(c, fiber.StatusUnauthorized, "invalid_token_format", "Formato de token invalido. Use Bearer <token>", nil)
 		}
 
-		token, claims, err := jwtManager.VerificateToken(parts[1])
+		token, claims, err := jwtManager.VerifyToken(parts[1])
 		if err != nil || !token.Valid {
 			return apiresponse.Error(c, fiber.StatusUnauthorized, "invalid_token", "El token no es valido", nil)
 		}

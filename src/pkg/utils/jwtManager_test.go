@@ -10,7 +10,7 @@ func TestGenerateAndVerifyToken(t *testing.T) {
 		t.Fatalf("token generation failed: %v", err)
 	}
 
-	parsed, claims, err := VerificateToken(token)
+	parsed, claims, err := VerifyToken(token)
 	if err != nil {
 		t.Fatalf("token parse failed: %v", err)
 	}

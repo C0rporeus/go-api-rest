@@ -1,4 +1,4 @@
-package authServices
+package services
 
 import (
 	"errors"
@@ -85,7 +85,7 @@ func TestGetUserByEmailAndByID(t *testing.T) {
 			return &dynamodb.QueryOutput{
 				Items: []map[string]types.AttributeValue{
 					{
-						"userId":   &types.AttributeValueMemberS{Value: "u-1"},
+						"UserId":   &types.AttributeValueMemberS{Value: "u-1"},
 						"email":    &types.AttributeValueMemberS{Value: "mail@test.com"},
 						"password": &types.AttributeValueMemberS{Value: "hash"},
 						"username": &types.AttributeValueMemberS{Value: "tester"},
@@ -97,7 +97,7 @@ func TestGetUserByEmailAndByID(t *testing.T) {
 		func(_ *dynamodb.Client, _ *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
 			return &dynamodb.GetItemOutput{
 				Item: map[string]types.AttributeValue{
-					"userId":   &types.AttributeValueMemberS{Value: "u-1"},
+					"UserId":   &types.AttributeValueMemberS{Value: "u-1"},
 					"email":    &types.AttributeValueMemberS{Value: "mail@test.com"},
 					"password": &types.AttributeValueMemberS{Value: "hash"},
 					"username": &types.AttributeValueMemberS{Value: "tester"},
@@ -182,7 +182,7 @@ func TestRegisterAndLoginSuccess(t *testing.T) {
 			return &dynamodb.QueryOutput{
 				Items: []map[string]types.AttributeValue{
 					{
-						"userId":   &types.AttributeValueMemberS{Value: "u-login"},
+						"UserId":   &types.AttributeValueMemberS{Value: "u-login"},
 						"email":    &types.AttributeValueMemberS{Value: "mail@test.com"},
 						"password": &types.AttributeValueMemberS{Value: string(hashed)},
 						"username": &types.AttributeValueMemberS{Value: "tester"},
@@ -261,5 +261,47 @@ func TestRegisterAndLoginErrorPaths(t *testing.T) {
 	}
 	if registerRes.StatusCode != fiber.StatusInternalServerError {
 		t.Fatalf("expected internal server error status, got %d", registerRes.StatusCode)
+	}
+}
+
+func TestRefreshTokenSuccess(t *testing.T) {
+	t.Setenv("JWT_SECRET", "unit-test-secret")
+
+	app := fiber.New()
+	app.Post("/refresh", func(c *fiber.Ctx) error {
+		c.Locals("userId", "u-1")
+		c.Locals("username", "tester")
+		return RefreshToken(c)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+	res, err := app.Test(req, -1)
+	if err != nil || res.StatusCode != fiber.StatusOK {
+		t.Fatalf("refresh failed err=%v status=%d", err, res.StatusCode)
+	}
+
+	raw, _ := io.ReadAll(res.Body)
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("invalid refresh payload: %v", err)
+	}
+	if _, ok := payload["token"]; !ok {
+		t.Fatalf("expected token in refresh payload")
+	}
+}
+
+func TestRefreshTokenMissingLocals(t *testing.T) {
+	t.Setenv("JWT_SECRET", "unit-test-secret")
+
+	app := fiber.New()
+	app.Post("/refresh", RefreshToken)
+
+	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+	res, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", res.StatusCode)
 	}
 }

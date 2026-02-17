@@ -56,6 +56,16 @@ const (
 	FilePermission = 0o644
 )
 
+// API route paths.
+const APIContactPath = "/api/contact"
+
+// Data storage defaults.
+const (
+	DefaultDataDir          = "data"
+	ExperiencesFilename     = "experiences.json"
+	DataDirEnvVar           = "PORTFOLIO_DATA_DIR"
+)
+
 // DefaultJWTExpiryHours is the fallback JWT token expiry in hours.
 const DefaultJWTExpiryHours = 24
 

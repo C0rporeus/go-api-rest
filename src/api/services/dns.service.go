@@ -1,4 +1,4 @@
-package authServices
+package services
 
 import (
 	"backend-yonathan/src/pkg/apiresponse"
@@ -13,6 +13,30 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// dnsResolver abstracts net.Resolver for testability.
+type dnsResolver interface {
+	LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error)
+	LookupCNAME(ctx context.Context, host string) (string, error)
+	LookupMX(ctx context.Context, name string) ([]*net.MX, error)
+	LookupNS(ctx context.Context, name string) ([]*net.NS, error)
+	LookupTXT(ctx context.Context, name string) ([]string, error)
+	LookupHost(ctx context.Context, host string) ([]string, error)
+}
+
+// newDNSResolver is the factory for DNS resolvers. Override in tests.
+var newDNSResolver = func() dnsResolver {
+	return &net.Resolver{}
+}
+
+// ResolveDomain godoc
+// @Summary      Resolver dominio
+// @Description  Resuelve un dominio a direcciones IPv4 e IPv6
+// @Tags         DNS
+// @Produce      json
+// @Param        domain  query  string  true  "Dominio a resolver"
+// @Success      200  {object}  map[string]interface{}  "domain, ipv4, ipv6, resolved"
+// @Failure      400  {object}  map[string]interface{}
+// @Router       /api/tools/dns/resolve [get]
 func ResolveDomain(c *fiber.Ctx) error {
 	domain := strings.TrimSpace(c.Query("domain"))
 	if domain == "" {
@@ -22,7 +46,7 @@ func ResolveDomain(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.DefaultDNSTimeout)
 	defer cancel()
 
-	resolver := &net.Resolver{}
+	resolver := newDNSResolver()
 	ips, err := resolver.LookupIPAddr(ctx, domain)
 
 	var ipv4List []string
@@ -46,6 +70,16 @@ func ResolveDomain(c *fiber.Ctx) error {
 	})
 }
 
+// CheckPropagation godoc
+// @Summary      Verificar propagacion DNS
+// @Description  Consulta registros DNS por tipo (A, AAAA, CNAME, MX, NS, TXT)
+// @Tags         DNS
+// @Produce      json
+// @Param        domain  query  string  true   "Dominio"
+// @Param        type    query  string  false  "Tipo de registro (default: A)"
+// @Success      200  {object}  map[string]interface{}  "domain, recordType, records, timestamp"
+// @Failure      400  {object}  map[string]interface{}
+// @Router       /api/tools/dns/propagation [get]
 func CheckPropagation(c *fiber.Ctx) error {
 	domain := strings.TrimSpace(c.Query("domain"))
 	if domain == "" {
@@ -56,7 +90,7 @@ func CheckPropagation(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.DefaultDNSTimeout)
 	defer cancel()
 
-	resolver := &net.Resolver{}
+	resolver := newDNSResolver()
 	var records []string
 
 	switch recordType {
@@ -106,6 +140,15 @@ func CheckPropagation(c *fiber.Ctx) error {
 	})
 }
 
+// GetMailRecords godoc
+// @Summary      Registros de correo
+// @Description  Consulta registros MX, SPF, DKIM y DMARC de un dominio
+// @Tags         DNS
+// @Produce      json
+// @Param        domain  query  string  true  "Dominio"
+// @Success      200  {object}  map[string]interface{}  "domain, mx, spf, dkim, dmarc"
+// @Failure      400  {object}  map[string]interface{}
+// @Router       /api/tools/dns/mail-records [get]
 func GetMailRecords(c *fiber.Ctx) error {
 	domain := strings.TrimSpace(c.Query("domain"))
 	if domain == "" {
@@ -115,7 +158,7 @@ func GetMailRecords(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.DefaultDNSTimeout)
 	defer cancel()
 
-	resolver := &net.Resolver{}
+	resolver := newDNSResolver()
 
 	// MX records
 	var mxRecords []string
@@ -168,6 +211,15 @@ func GetMailRecords(c *fiber.Ctx) error {
 	})
 }
 
+// CheckBlacklist godoc
+// @Summary      Verificar blacklist DNSBL
+// @Description  Verifica una IPv4 contra 6 proveedores DNSBL en paralelo
+// @Tags         DNS
+// @Produce      json
+// @Param        ip  query  string  true  "Direccion IPv4"
+// @Success      200  {object}  map[string]interface{}  "ip, results"
+// @Failure      400  {object}  map[string]interface{}
+// @Router       /api/tools/dns/blacklist [get]
 func CheckBlacklist(c *fiber.Ctx) error {
 	ip := strings.TrimSpace(c.Query("ip"))
 	if ip == "" {
@@ -191,7 +243,7 @@ func CheckBlacklist(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.DefaultDNSTimeout)
 	defer cancel()
 
-	resolver := &net.Resolver{}
+	resolver := newDNSResolver()
 	results := make([]blacklistResult, len(constants.DNSBLProviders))
 
 	var wg sync.WaitGroup

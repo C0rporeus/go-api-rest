@@ -1,4 +1,4 @@
-package authServices
+package services
 
 import (
 	"backend-yonathan/src/pkg/apiresponse"
@@ -28,6 +28,16 @@ type certRequest struct {
 	Password     string `json:"password"`
 }
 
+// EncodeBase64 godoc
+// @Summary      Codificar Base64
+// @Description  Codifica un string en Base64
+// @Tags         Tools
+// @Accept       json
+// @Produce      json
+// @Param        payload  body  object{value=string}  true  "Texto a codificar"
+// @Success      200  {object}  map[string]string  "input, encoded"
+// @Failure      400  {object}  map[string]interface{}
+// @Router       /api/tools/base64/encode [post]
 func EncodeBase64(c *fiber.Ctx) error {
 	var payload base64Request
 	if err := c.BodyParser(&payload); err != nil {
@@ -40,6 +50,16 @@ func EncodeBase64(c *fiber.Ctx) error {
 	})
 }
 
+// DecodeBase64 godoc
+// @Summary      Decodificar Base64
+// @Description  Decodifica un string Base64
+// @Tags         Tools
+// @Accept       json
+// @Produce      json
+// @Param        payload  body  object{value=string}  true  "Texto en Base64"
+// @Success      200  {object}  map[string]string  "input, decoded"
+// @Failure      400  {object}  map[string]interface{}
+// @Router       /api/tools/base64/decode [post]
 func DecodeBase64(c *fiber.Ctx) error {
 	var payload base64Request
 	if err := c.BodyParser(&payload); err != nil {
@@ -57,12 +77,30 @@ func DecodeBase64(c *fiber.Ctx) error {
 	})
 }
 
+// GenerateUUIDv4 godoc
+// @Summary      Generar UUID v4
+// @Description  Genera un UUID v4 aleatorio
+// @Tags         Tools
+// @Produce      json
+// @Success      200  {object}  map[string]string  "uuid"
+// @Router       /api/tools/uuid/v4 [get]
 func GenerateUUIDv4(c *fiber.Ctx) error {
 	return apiresponse.Success(c, fiber.Map{
 		"uuid": uuid.NewString(),
 	})
 }
 
+// GenerateSelfSignedCert godoc
+// @Summary      Generar certificado autofirmado
+// @Description  Genera un certificado X.509 autofirmado con PEM, DER y PFX
+// @Tags         Tools
+// @Accept       json
+// @Produce      json
+// @Param        payload  body  object{commonName=string,organization=string,validDays=int,password=string}  true  "Parametros del certificado"
+// @Success      200  {object}  map[string]string  "certPem, keyPem, certBase64, pfxBase64, password"
+// @Failure      400  {object}  map[string]interface{}
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /api/tools/certs/self-signed [post]
 func GenerateSelfSignedCert(c *fiber.Ctx) error {
 	var payload certRequest
 	if err := c.BodyParser(&payload); err != nil {

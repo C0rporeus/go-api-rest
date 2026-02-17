@@ -2,10 +2,8 @@ package handlers
 
 import (
 	jwtMiddleware "backend-yonathan/src/api/middlewares"
-	authServices "backend-yonathan/src/api/services"
+	"backend-yonathan/src/api/services"
 	"backend-yonathan/src/config"
-	"backend-yonathan/src/pkg/apiresponse"
-	"backend-yonathan/src/pkg/telemetry"
 	"log"
 
 	"github.com/gofiber/fiber/v2"
@@ -18,54 +16,50 @@ func SetupRoutes(app *fiber.App) {
 		log.Fatalf("Error al configurar AWS: %v", err)
 	}
 
+	// --- Public routes ---
+
 	public := app.Group("/api")
 	public.Post("/login", func(c *fiber.Ctx) error {
-		return authServices.Login(c, dbClient)
+		return services.Login(c, dbClient)
 	})
 	public.Post("/register", func(c *fiber.Ctx) error {
-		return authServices.Register(c, dbClient)
+		return services.Register(c, dbClient)
 	})
+	public.Post("/contact", services.SubmitContact)
+	public.Get("/experiences", services.ListPublicExperiences)
+	public.Get("/skills", services.ListPublicSkills)
+
+	// --- Tools (public, no auth) ---
 
 	tools := public.Group("/tools")
-	tools.Post("/base64/encode", authServices.EncodeBase64)
-	tools.Post("/base64/decode", authServices.DecodeBase64)
-	tools.Get("/uuid/v4", authServices.GenerateUUIDv4)
-	tools.Post("/certs/self-signed", authServices.GenerateSelfSignedCert)
-	tools.Get("/dns/resolve", authServices.ResolveDomain)
-	tools.Get("/dns/propagation", authServices.CheckPropagation)
-	tools.Get("/dns/mail-records", authServices.GetMailRecords)
-	tools.Get("/dns/blacklist", authServices.CheckBlacklist)
-	public.Get("/experiences", authServices.ListPublicExperiences)
-	public.Get("/skills", authServices.ListPublicSkills)
+	tools.Post("/base64/encode", services.EncodeBase64)
+	tools.Post("/base64/decode", services.DecodeBase64)
+	tools.Get("/uuid/v4", services.GenerateUUIDv4)
+	tools.Post("/certs/self-signed", services.GenerateSelfSignedCert)
+	tools.Get("/dns/resolve", services.ResolveDomain)
+	tools.Get("/dns/propagation", services.CheckPropagation)
+	tools.Get("/dns/mail-records", services.GetMailRecords)
+	tools.Get("/dns/blacklist", services.CheckBlacklist)
+
+	// --- Private routes (require JWT) ---
 
 	private := app.Group("/api/private", jwtMiddleware.JWTProtected())
-	private.Get("/me", func(c *fiber.Ctx) error {
-		return apiresponse.Success(c, fiber.Map{
-			"userId":   c.Locals("userId"),
-			"username": c.Locals("username"),
-		})
-	})
-	private.Get("/experiences", authServices.ListAllExperiences)
-	private.Post("/experiences", authServices.CreateExperience)
-	private.Put("/experiences/:id", authServices.UpdateExperience)
-	private.Delete("/experiences/:id", authServices.DeleteExperience)
-	private.Get("/skills", authServices.ListAllSkills)
-	private.Post("/skills", authServices.CreateSkill)
-	private.Put("/skills/:id", authServices.UpdateSkill)
-	private.Delete("/skills/:id", authServices.DeleteSkill)
-	private.Get("/ops/metrics", func(c *fiber.Ctx) error {
-		return apiresponse.Success(c, telemetry.Snapshot())
-	})
-	private.Get("/ops/alerts", func(c *fiber.Ctx) error {
-		return apiresponse.Success(c, telemetry.Alerts())
-	})
-	private.Get("/ops/health", func(c *fiber.Ctx) error {
-		return apiresponse.Success(c, telemetry.Health())
-	})
-	private.Get("/ops/history", func(c *fiber.Ctx) error {
-		return apiresponse.Success(c, telemetry.History())
-	})
-	private.Get("/ops/summary", func(c *fiber.Ctx) error {
-		return apiresponse.Success(c, telemetry.Summary())
-	})
+	private.Get("/me", services.GetCurrentUser)
+	private.Post("/refresh", services.RefreshToken)
+
+	private.Get("/experiences", services.ListAllExperiences)
+	private.Post("/experiences", services.CreateExperience)
+	private.Put("/experiences/:id", services.UpdateExperience)
+	private.Delete("/experiences/:id", services.DeleteExperience)
+
+	private.Get("/skills", services.ListAllSkills)
+	private.Post("/skills", services.CreateSkill)
+	private.Put("/skills/:id", services.UpdateSkill)
+	private.Delete("/skills/:id", services.DeleteSkill)
+
+	private.Get("/ops/metrics", services.GetOpsMetrics)
+	private.Get("/ops/alerts", services.GetOpsAlerts)
+	private.Get("/ops/health", services.GetOpsHealth)
+	private.Get("/ops/history", services.GetOpsHistory)
+	private.Get("/ops/summary", services.GetOpsSummary)
 }

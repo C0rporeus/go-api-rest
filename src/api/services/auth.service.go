@@ -1,4 +1,4 @@
-package authServices
+package services
 
 import (
 	userModel "backend-yonathan/src/models"
@@ -7,7 +7,6 @@ import (
 	jwtManager "backend-yonathan/src/pkg/utils"
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
@@ -38,7 +37,6 @@ func SaveUser(dbClient *dynamodb.Client, user userModel.User) error {
 	input := &dynamodb.PutItemInput{
 		Item: map[string]types.AttributeValue{
 			"UserId":   &types.AttributeValueMemberS{Value: user.UserId},
-			"userId":   &types.AttributeValueMemberS{Value: user.UserId},
 			"email":    &types.AttributeValueMemberS{Value: user.Email},
 			"password": &types.AttributeValueMemberS{Value: user.Password},
 			"username": &types.AttributeValueMemberS{Value: user.UserName},
@@ -52,38 +50,21 @@ func SaveUser(dbClient *dynamodb.Client, user userModel.User) error {
 	return nil
 }
 
+// GetUserById looks up a user by the "UserId" partition key.
 func GetUserById(dbClient *dynamodb.Client, id string) (userModel.User, error) {
 	var user userModel.User
 	tableName := constants.TableName()
-	buildInput := func(keyName string) *dynamodb.GetItemInput {
-		return &dynamodb.GetItemInput{
-			TableName: aws.String(tableName),
-			Key: map[string]types.AttributeValue{
-				keyName: &types.AttributeValueMemberS{Value: id},
-			},
-		}
+
+	input := &dynamodb.GetItemInput{
+		TableName: aws.String(tableName),
+		Key: map[string]types.AttributeValue{
+			"UserId": &types.AttributeValueMemberS{Value: id},
+		},
 	}
 
-	input := buildInput("UserId")
 	result, err := getItemFunc(dbClient, input)
 	if err != nil {
-		// Compatibilidad con tablas legacy que usan "userId".
-		if strings.Contains(err.Error(), "Missing the key userId") {
-			input = buildInput("userId")
-			result, err = getItemFunc(dbClient, input)
-		}
-	}
-
-	if err != nil {
 		return user, err
-	}
-
-	if result.Item == nil {
-		input = buildInput("userId")
-		result, err = getItemFunc(dbClient, input)
-		if err != nil {
-			return user, err
-		}
 	}
 
 	if result.Item == nil {
@@ -130,6 +111,17 @@ func GetUserByEmail(dbClient *dynamodb.Client, email string) (userModel.User, er
 	return user, nil
 }
 
+// Register godoc
+// @Summary      Registro de usuarios
+// @Description  Crea una cuenta nueva y devuelve un JWT
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        user  body  object{email=string,password=string,username=string}  true  "Datos de registro"
+// @Success      200  {object}  map[string]string  "token"
+// @Failure      400  {object}  map[string]interface{}
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /api/register [post]
 func Register(c *fiber.Ctx, dbClient *dynamodb.Client) error {
 	var user userModel.User
 	if err := c.BodyParser(&user); err != nil {
@@ -158,6 +150,17 @@ func Register(c *fiber.Ctx, dbClient *dynamodb.Client) error {
 	return apiresponse.Success(c, fiber.Map{"token": token})
 }
 
+// Login godoc
+// @Summary      Login de usuarios
+// @Description  Autentica con email/password y devuelve un JWT
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        credentials  body  object{email=string,password=string}  true  "Credenciales"
+// @Success      200  {object}  map[string]string  "token"
+// @Failure      400  {object}  map[string]interface{}
+// @Failure      401  {object}  map[string]interface{}
+// @Router       /api/login [post]
 func Login(c *fiber.Ctx, dbClient *dynamodb.Client) error {
 	var loginRequest struct {
 		Email    string `json:"email"`
@@ -181,5 +184,47 @@ func Login(c *fiber.Ctx, dbClient *dynamodb.Client) error {
 	if err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "token_generation_failed", "No se pudo generar el token", err.Error())
 	}
+	return apiresponse.Success(c, fiber.Map{"token": token})
+}
+
+// GetCurrentUser godoc
+// @Summary      Usuario autenticado
+// @Description  Devuelve userId y username del JWT actual
+// @Tags         Auth
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]string
+// @Failure      401  {object}  map[string]interface{}
+// @Router       /api/private/me [get]
+func GetCurrentUser(c *fiber.Ctx) error {
+	return apiresponse.Success(c, fiber.Map{
+		"userId":   c.Locals("userId"),
+		"username": c.Locals("username"),
+	})
+}
+
+// RefreshToken godoc
+// @Summary      Renovar token JWT
+// @Description  Genera un nuevo JWT a partir del token actual (debe ser valido)
+// @Tags         Auth
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]string  "token"
+// @Failure      401  {object}  map[string]interface{}
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /api/private/refresh [post]
+func RefreshToken(c *fiber.Ctx) error {
+	userId, _ := c.Locals("userId").(string)
+	username, _ := c.Locals("username").(string)
+
+	if userId == "" {
+		return apiresponse.Error(c, fiber.StatusUnauthorized, "invalid_session", "Sesion invalida", nil)
+	}
+
+	token, err := jwtManager.GenerateToken(userId, username)
+	if err != nil {
+		return apiresponse.Error(c, fiber.StatusInternalServerError, "token_generation_failed", "No se pudo renovar el token", err.Error())
+	}
+
 	return apiresponse.Success(c, fiber.Map{"token": token})
 }

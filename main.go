@@ -20,6 +20,16 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// @title          Portfolio API
+// @version        1.0
+// @description    API REST para portfolio personal de Yonathan Gutierrez
+// @host           localhost:3100
+// @BasePath       /
+// @securityDefinitions.apikey  BearerAuth
+// @in                          header
+// @name                        Authorization
+// @description                 JWT token con formato "Bearer {token}"
+
 func init() {
 	if err := godotenv.Load(); err != nil {
 		log.Fatal("Error loading .env file")
@@ -38,7 +48,17 @@ func main() {
 		},
 	})
 
-	app.Use(cors.New())
+	allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if allowedOrigins == "" {
+		allowedOrigins = "http://localhost:3000"
+	}
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     allowedOrigins,
+		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Request-ID",
+		ExposeHeaders:    "X-Request-ID",
+		AllowCredentials: false,
+	}))
 	app.Use(func(c *fiber.Ctx) error {
 		requestID := c.Get("X-Request-ID")
 		if requestID == "" {

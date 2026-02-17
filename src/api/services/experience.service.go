@@ -1,128 +1,25 @@
-package authServices
+package services
 
 import (
 	userModel "backend-yonathan/src/models"
 	"backend-yonathan/src/pkg/apiresponse"
 	"backend-yonathan/src/pkg/constants"
-	"crypto/sha1"
-	"encoding/hex"
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
-var experienceStoreLock sync.RWMutex
-
-func experiencesFilePath() string {
-	dataDir := os.Getenv("PORTFOLIO_DATA_DIR")
-	if dataDir == "" {
-		dataDir = "data"
-	}
-	return filepath.Join(dataDir, "experiences.json")
-}
-
-func loadExperiences() ([]userModel.Experience, error) {
-	filePath := experiencesFilePath()
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []userModel.Experience{}, nil
-		}
-		return nil, err
-	}
-
-	var experiences []userModel.Experience
-	if len(data) == 0 {
-		return []userModel.Experience{}, nil
-	}
-	if err := json.Unmarshal(data, &experiences); err != nil {
-		return nil, err
-	}
-	return experiences, nil
-}
-
-func saveExperiences(experiences []userModel.Experience) error {
-	filePath := experiencesFilePath()
-	if err := os.MkdirAll(filepath.Dir(filePath), constants.DirPermission); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(experiences, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filePath, data, constants.FilePermission)
-}
-
-type experiencePayload struct {
-	Title      string   `json:"title"`
-	Summary    string   `json:"summary"`
-	Body       string   `json:"body"`
-	ImageURLs  []string `json:"imageUrls"`
-	Tags       []string `json:"tags"`
-	Visibility string   `json:"visibility"`
-}
-
-func normalizeVisibility(visibility string) string {
-	v := strings.ToLower(strings.TrimSpace(visibility))
-	if v != constants.VisibilityPrivate {
-		return constants.VisibilityPublic
-	}
-	return v
-}
-
-func normalizeImageURLs(urls []string) []string {
-	if len(urls) == 0 {
-		return []string{}
-	}
-	normalized := make([]string, 0, len(urls))
-	for _, url := range urls {
-		clean := strings.TrimSpace(url)
-		if clean == "" {
-			continue
-		}
-		normalized = append(normalized, clean)
-	}
-	return normalized
-}
-
-func buildCollectionETag(items []userModel.Experience) string {
-	payload, err := json.Marshal(items)
-	if err != nil {
-		return ""
-	}
-	sum := sha1.Sum(payload)
-	return "W/\"" + hex.EncodeToString(sum[:]) + "\""
-}
-
-func matchesIfNoneMatchHeader(ifNoneMatch, etag string) bool {
-	if etag == "" {
-		return false
-	}
-	if strings.TrimSpace(ifNoneMatch) == "*" {
-		return true
-	}
-
-	for _, candidate := range strings.Split(ifNoneMatch, ",") {
-		if strings.TrimSpace(candidate) == etag {
-			return true
-		}
-	}
-	return false
-}
-
-func setPublicCollectionCacheHeaders(c *fiber.Ctx, etag string) {
-	c.Set("Cache-Control", constants.PublicCollectionCacheControl)
-	if etag != "" {
-		c.Set("ETag", etag)
-	}
-}
-
+// ListPublicExperiences godoc
+// @Summary      Listar experiencias publicas
+// @Description  Devuelve experiencias con visibility=public. Soporta ETag/If-None-Match.
+// @Tags         Experiences
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "items"
+// @Success      304  "Not Modified"
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /api/experiences [get]
 func ListPublicExperiences(c *fiber.Ctx) error {
 	experienceStoreLock.RLock()
 	defer experienceStoreLock.RUnlock()
@@ -148,6 +45,16 @@ func ListPublicExperiences(c *fiber.Ctx) error {
 	return apiresponse.Success(c, fiber.Map{"items": publicExperiences})
 }
 
+// ListAllExperiences godoc
+// @Summary      Listar todas las experiencias
+// @Description  Devuelve todas las experiencias (publicas y privadas). Requiere JWT.
+// @Tags         Experiences
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]interface{}  "items"
+// @Failure      401  {object}  map[string]interface{}
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /api/private/experiences [get]
 func ListAllExperiences(c *fiber.Ctx) error {
 	experienceStoreLock.RLock()
 	defer experienceStoreLock.RUnlock()
@@ -159,6 +66,18 @@ func ListAllExperiences(c *fiber.Ctx) error {
 	return apiresponse.Success(c, fiber.Map{"items": experiences})
 }
 
+// CreateExperience godoc
+// @Summary      Crear experiencia
+// @Description  Crea una nueva experiencia. Requiere JWT.
+// @Tags         Experiences
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        experience  body  object{title=string,summary=string,body=string,imageUrls=[]string,tags=[]string,visibility=string}  true  "Datos"
+// @Success      200  {object}  userModel.Experience
+// @Failure      400  {object}  map[string]interface{}
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /api/private/experiences [post]
 func CreateExperience(c *fiber.Ctx) error {
 	var payload experiencePayload
 	if err := c.BodyParser(&payload); err != nil {
@@ -197,6 +116,20 @@ func CreateExperience(c *fiber.Ctx) error {
 	return apiresponse.Success(c, item)
 }
 
+// UpdateExperience godoc
+// @Summary      Actualizar experiencia
+// @Description  Actualiza una experiencia por ID. Requiere JWT.
+// @Tags         Experiences
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id          path  string  true  "ID de la experiencia"
+// @Param        experience  body  object{title=string,summary=string,body=string,imageUrls=[]string,tags=[]string,visibility=string}  true  "Datos"
+// @Success      200  {object}  userModel.Experience
+// @Failure      400  {object}  map[string]interface{}
+// @Failure      404  {object}  map[string]interface{}
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /api/private/experiences/{id} [put]
 func UpdateExperience(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if strings.TrimSpace(id) == "" {
@@ -239,6 +172,18 @@ func UpdateExperience(c *fiber.Ctx) error {
 	return apiresponse.Error(c, fiber.StatusNotFound, "experience_not_found", "Experiencia no encontrada", nil)
 }
 
+// DeleteExperience godoc
+// @Summary      Eliminar experiencia
+// @Description  Elimina una experiencia por ID. Requiere JWT.
+// @Tags         Experiences
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id  path  string  true  "ID de la experiencia"
+// @Success      200  {object}  map[string]interface{}  "deleted, id"
+// @Failure      400  {object}  map[string]interface{}
+// @Failure      404  {object}  map[string]interface{}
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /api/private/experiences/{id} [delete]
 func DeleteExperience(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if strings.TrimSpace(id) == "" {
