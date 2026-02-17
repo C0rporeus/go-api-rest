@@ -4,10 +4,13 @@ import (
 	jwtMiddleware "backend-yonathan/src/api/middlewares"
 	"backend-yonathan/src/api/services"
 	"backend-yonathan/src/config"
+	"backend-yonathan/src/pkg/apiresponse"
+	"backend-yonathan/src/pkg/constants"
 	"log"
+	"time"
 
-	"github.com/gofiber/fiber/v2"
-	_ "github.com/gofiber/swagger"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/limiter"
 )
 
 func SetupRoutes(app *fiber.App) {
@@ -16,22 +19,43 @@ func SetupRoutes(app *fiber.App) {
 		log.Fatalf("Error al configurar AWS: %v", err)
 	}
 
+	rateLimitReached := func(c fiber.Ctx) error {
+		return apiresponse.Error(c, fiber.StatusTooManyRequests,
+			"rate_limit_exceeded",
+			"Demasiadas solicitudes. Intenta de nuevo en un momento.",
+			nil)
+	}
+
+	// Stricter rate limiter for auth endpoints (brute-force protection)
+	authLimiter := limiter.New(limiter.Config{
+		Max:          constants.RateLimitAuthMax,
+		Expiration:   time.Duration(constants.RateLimitAuthWindow) * time.Second,
+		LimitReached: rateLimitReached,
+	})
+
+	// Moderate rate limiter for tools endpoints (abuse protection)
+	toolsLimiter := limiter.New(limiter.Config{
+		Max:          constants.RateLimitToolsMax,
+		Expiration:   time.Duration(constants.RateLimitToolsWindow) * time.Second,
+		LimitReached: rateLimitReached,
+	})
+
 	// --- Public routes ---
 
 	public := app.Group("/api")
-	public.Post("/login", func(c *fiber.Ctx) error {
+	public.Post("/login", authLimiter, func(c fiber.Ctx) error {
 		return services.Login(c, dbClient)
 	})
-	public.Post("/register", func(c *fiber.Ctx) error {
+	public.Post("/register", authLimiter, func(c fiber.Ctx) error {
 		return services.Register(c, dbClient)
 	})
-	public.Post("/contact", services.SubmitContact)
+	public.Post("/contact", authLimiter, services.SubmitContact)
 	public.Get("/experiences", services.ListPublicExperiences)
 	public.Get("/skills", services.ListPublicSkills)
 
 	// --- Tools (public, no auth) ---
 
-	tools := public.Group("/tools")
+	tools := public.Group("/tools", toolsLimiter)
 	tools.Post("/base64/encode", services.EncodeBase64)
 	tools.Post("/base64/decode", services.DecodeBase64)
 	tools.Get("/uuid/v4", services.GenerateUUIDv4)

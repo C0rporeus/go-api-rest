@@ -12,19 +12,19 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"golang.org/x/crypto/bcrypt"
 )
 
 func TestLoginRejectsInvalidPayload(t *testing.T) {
 	app := fiber.New()
-	app.Post("/login", func(c *fiber.Ctx) error {
+	app.Post("/login", func(c fiber.Ctx) error {
 		return Login(c, nil)
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader("{invalid-json"))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -35,13 +35,13 @@ func TestLoginRejectsInvalidPayload(t *testing.T) {
 
 func TestRegisterRejectsInvalidPayload(t *testing.T) {
 	app := fiber.New()
-	app.Post("/register", func(c *fiber.Ctx) error {
+	app.Post("/register", func(c fiber.Ctx) error {
 		return Register(c, nil)
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader("{invalid-json"))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestRegisterAndLoginSuccess(t *testing.T) {
 	t.Setenv("JWT_SECRET", "unit-test-secret")
 	existingUserQueryCalls := 0
 
-	hashed, err := bcrypt.GenerateFromPassword([]byte("1234"), bcrypt.DefaultCost)
+	hashed, err := bcrypt.GenerateFromPassword([]byte("Test1234"), bcrypt.DefaultCost)
 	if err != nil {
 		t.Fatalf("hash failed: %v", err)
 	}
@@ -197,19 +197,19 @@ func TestRegisterAndLoginSuccess(t *testing.T) {
 	)
 
 	app := fiber.New()
-	app.Post("/register", func(c *fiber.Ctx) error { return Register(c, nil) })
-	app.Post("/login", func(c *fiber.Ctx) error { return Login(c, nil) })
+	app.Post("/register", func(c fiber.Ctx) error { return Register(c, nil) })
+	app.Post("/login", func(c fiber.Ctx) error { return Login(c, nil) })
 
-	registerReq := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(`{"email":"mail@test.com","password":"1234","username":"tester"}`))
+	registerReq := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(`{"email":"mail@test.com","password":"Test1234","username":"tester"}`))
 	registerReq.Header.Set("Content-Type", "application/json")
-	registerRes, err := app.Test(registerReq, -1)
+	registerRes, err := app.Test(registerReq)
 	if err != nil || registerRes.StatusCode != fiber.StatusOK {
 		t.Fatalf("register failed err=%v status=%d", err, registerRes.StatusCode)
 	}
 
-	loginReq := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(`{"email":"mail@test.com","password":"1234"}`))
+	loginReq := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(`{"email":"mail@test.com","password":"Test1234"}`))
 	loginReq.Header.Set("Content-Type", "application/json")
-	loginRes, err := app.Test(loginReq, -1)
+	loginRes, err := app.Test(loginReq)
 	if err != nil || loginRes.StatusCode != fiber.StatusOK {
 		t.Fatalf("login failed err=%v status=%d", err, loginRes.StatusCode)
 	}
@@ -240,12 +240,12 @@ func TestRegisterAndLoginErrorPaths(t *testing.T) {
 	)
 
 	app := fiber.New()
-	app.Post("/login", func(c *fiber.Ctx) error { return Login(c, nil) })
-	app.Post("/register", func(c *fiber.Ctx) error { return Register(c, nil) })
+	app.Post("/login", func(c fiber.Ctx) error { return Login(c, nil) })
+	app.Post("/register", func(c fiber.Ctx) error { return Register(c, nil) })
 
-	loginReq := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(`{"email":"mail@test.com","password":"1234"}`))
+	loginReq := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(`{"email":"mail@test.com","password":"Test1234"}`))
 	loginReq.Header.Set("Content-Type", "application/json")
-	loginRes, err := app.Test(loginReq, -1)
+	loginRes, err := app.Test(loginReq)
 	if err != nil {
 		t.Fatalf("login call failed: %v", err)
 	}
@@ -253,9 +253,9 @@ func TestRegisterAndLoginErrorPaths(t *testing.T) {
 		t.Fatalf("expected unauthorized status, got %d", loginRes.StatusCode)
 	}
 
-	registerReq := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(`{"email":"mail@test.com","password":"1234","username":"tester"}`))
+	registerReq := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(`{"email":"mail@test.com","password":"Test1234","username":"tester"}`))
 	registerReq.Header.Set("Content-Type", "application/json")
-	registerRes, err := app.Test(registerReq, -1)
+	registerRes, err := app.Test(registerReq)
 	if err != nil {
 		t.Fatalf("register call failed: %v", err)
 	}
@@ -268,14 +268,14 @@ func TestRefreshTokenSuccess(t *testing.T) {
 	t.Setenv("JWT_SECRET", "unit-test-secret")
 
 	app := fiber.New()
-	app.Post("/refresh", func(c *fiber.Ctx) error {
+	app.Post("/refresh", func(c fiber.Ctx) error {
 		c.Locals("userId", "u-1")
 		c.Locals("username", "tester")
 		return RefreshToken(c)
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil || res.StatusCode != fiber.StatusOK {
 		t.Fatalf("refresh failed err=%v status=%d", err, res.StatusCode)
 	}
@@ -297,11 +297,31 @@ func TestRefreshTokenMissingLocals(t *testing.T) {
 	app.Post("/refresh", RefreshToken)
 
 	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if res.StatusCode != fiber.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", res.StatusCode)
+	}
+}
+
+func TestRefreshTokenEmptyUsername(t *testing.T) {
+	t.Setenv("JWT_SECRET", "unit-test-secret")
+
+	app := fiber.New()
+	app.Post("/refresh", func(c fiber.Ctx) error {
+		c.Locals("userId", "u-1")
+		c.Locals("username", "")
+		return RefreshToken(c)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusUnauthorized {
+		t.Fatalf("expected 401 for empty username, got %d", res.StatusCode)
 	}
 }

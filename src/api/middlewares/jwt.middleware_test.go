@@ -7,17 +7,17 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 func TestJWTProtectedRejectsMissingToken(t *testing.T) {
 	app := fiber.New()
-	app.Get("/private", JWTProtected(), func(c *fiber.Ctx) error {
+	app.Get("/private", JWTProtected(), func(c fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusOK)
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/private", nil)
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected app test error: %v", err)
 	}
@@ -36,13 +36,13 @@ func TestJWTProtectedAcceptsValidBearer(t *testing.T) {
 	}
 
 	app := fiber.New()
-	app.Get("/private", JWTProtected(), func(c *fiber.Ctx) error {
+	app.Get("/private", JWTProtected(), func(c fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusOK)
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/private", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected app test error: %v", err)
 	}

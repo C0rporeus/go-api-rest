@@ -1,17 +1,15 @@
 package services
 
 import (
-	userModel "backend-yonathan/src/models"
 	"backend-yonathan/src/pkg/constants"
-	"crypto/sha1"
-	"encoding/hex"
+	"backend-yonathan/src/pkg/sanitizer"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
-	"github.com/gofiber/fiber/v2"
+	userModel "backend-yonathan/src/models"
 )
 
 // experienceStoreLock protects concurrent access to the experiences JSON store.
@@ -96,50 +94,30 @@ func normalizeVisibility(visibility string) string {
 }
 
 func normalizeImageURLs(urls []string) []string {
-	if len(urls) == 0 {
-		return []string{}
-	}
-	normalized := make([]string, 0, len(urls))
-	for _, url := range urls {
-		clean := strings.TrimSpace(url)
-		if clean == "" {
-			continue
-		}
-		normalized = append(normalized, clean)
-	}
-	return normalized
+	return sanitizer.ValidateURLSlice(urls, constants.MaxImageURLCount)
 }
 
-// --- HTTP / caching helpers ---
-
-func buildCollectionETag(items []userModel.Experience) string {
-	payload, err := json.Marshal(items)
-	if err != nil {
-		return ""
-	}
-	sum := sha1.Sum(payload)
-	return "W/\"" + hex.EncodeToString(sum[:]) + "\""
+func normalizeTags(tags []string) []string {
+	return sanitizer.SanitizeSlice(tags, constants.MaxTagCount, func(tag string) string {
+		cleaned := sanitizer.SanitizePlainText(tag, constants.MaxTagLength)
+		return strings.ToLower(cleaned)
+	})
 }
 
-func matchesIfNoneMatchHeader(ifNoneMatch, etag string) bool {
-	if etag == "" {
-		return false
-	}
-	if strings.TrimSpace(ifNoneMatch) == "*" {
-		return true
-	}
-
-	for _, candidate := range strings.Split(ifNoneMatch, ",") {
-		if strings.TrimSpace(candidate) == etag {
-			return true
-		}
-	}
-	return false
+// sanitizePayload applies input sanitization and length limits to an experience/skill payload.
+// Title and Summary are stripped of HTML. Body allows safe HTML (UGC policy).
+// ImageURLs are validated as HTTP/HTTPS URLs. Tags are sanitized and lowercased.
+func sanitizePayload(p *experiencePayload) {
+	p.Title = sanitizer.SanitizePlainText(p.Title, constants.MaxTitleLength)
+	p.Summary = sanitizer.SanitizePlainText(p.Summary, constants.MaxSummaryLength)
+	p.Body = sanitizer.SanitizeRichText(p.Body, constants.MaxBodyLength)
+	p.ImageURLs = normalizeImageURLs(p.ImageURLs)
+	p.Tags = normalizeTags(p.Tags)
+	p.Visibility = normalizeVisibility(p.Visibility)
 }
 
-func setPublicCollectionCacheHeaders(c *fiber.Ctx, etag string) {
-	c.Set("Cache-Control", constants.PublicCollectionCacheControl)
-	if etag != "" {
-		c.Set("ETag", etag)
-	}
+// validatePayloadID validates a resource UUID from the URL path.
+func validatePayloadID(id string) bool {
+	return sanitizer.IsValidUUID(id)
 }
+

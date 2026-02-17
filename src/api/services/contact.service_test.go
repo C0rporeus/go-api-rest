@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 func TestSubmitContactSuccess(t *testing.T) {
@@ -27,7 +27,7 @@ func TestSubmitContactSuccess(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/contact", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -52,13 +52,13 @@ func TestSubmitContactMissingName(t *testing.T) {
 	app.Post("/contact", SubmitContact)
 
 	body, _ := json.Marshal(map[string]string{
-		"name":    "AB",
+		"name":    "A",
 		"email":   "test@test.com",
 		"message": "hola",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/contact", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestSubmitContactInvalidEmail(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/contact", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestSubmitContactEmptyMessage(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/contact", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestSubmitContactMessageTooLong(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/contact", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

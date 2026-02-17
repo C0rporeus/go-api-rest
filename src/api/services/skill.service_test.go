@@ -9,7 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"backend-yonathan/src/pkg/constants"
+
+	"github.com/gofiber/fiber/v3"
 )
 
 func TestCreateAndListPublicSkills(t *testing.T) {
@@ -24,12 +26,12 @@ func TestCreateAndListPublicSkills(t *testing.T) {
 		"summary":    "Capacidad en Go",
 		"body":       "Detalle de la habilidad",
 		"tags":       []string{"skill", "go"},
-		"visibility": "public",
+		"visibility": constants.VisibilityPublic,
 	})
 
 	createReq := httptest.NewRequest(http.MethodPost, "/private/skills", bytes.NewReader(body))
 	createReq.Header.Set("Content-Type", "application/json")
-	createRes, err := app.Test(createReq, -1)
+	createRes, err := app.Test(createReq)
 	if err != nil {
 		t.Fatalf("unexpected create error: %v", err)
 	}
@@ -38,7 +40,7 @@ func TestCreateAndListPublicSkills(t *testing.T) {
 	}
 
 	listReq := httptest.NewRequest(http.MethodGet, "/skills", nil)
-	listRes, err := app.Test(listReq, -1)
+	listRes, err := app.Test(listReq)
 	if err != nil {
 		t.Fatalf("unexpected list error: %v", err)
 	}
@@ -68,7 +70,7 @@ func TestCreateSkillRejectsMissingTitle(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/private/skills", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -85,11 +87,11 @@ func TestCreateSkillEnsuresSkillTag(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{
 		"title":      "TypeScript",
 		"tags":       []string{"frontend"},
-		"visibility": "public",
+		"visibility": constants.VisibilityPublic,
 	})
 	req := httptest.NewRequest(http.MethodPost, "/private/skills", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil || res.StatusCode != fiber.StatusOK {
 		t.Fatalf("create failed: err=%v status=%d", err, res.StatusCode)
 	}
@@ -128,11 +130,11 @@ func TestUpdateDeleteAndListAllSkills(t *testing.T) {
 		"summary":    "Contenedores",
 		"body":       "Detalle Docker",
 		"tags":       []string{"skill", "devops"},
-		"visibility": "public",
+		"visibility": constants.VisibilityPublic,
 	})
 	createReq := httptest.NewRequest(http.MethodPost, "/private/skills", bytes.NewReader(createBody))
 	createReq.Header.Set("Content-Type", "application/json")
-	createRes, err := app.Test(createReq, -1)
+	createRes, err := app.Test(createReq)
 	if err != nil || createRes.StatusCode != fiber.StatusOK {
 		t.Fatalf("create failed: %v status=%d", err, createRes.StatusCode)
 	}
@@ -153,18 +155,18 @@ func TestUpdateDeleteAndListAllSkills(t *testing.T) {
 		"summary":    "Contenedores y orquestacion",
 		"body":       "Docker + Compose",
 		"tags":       []string{"skill", "devops", "docker"},
-		"visibility": "private",
+		"visibility": constants.VisibilityPrivate,
 	})
 	updateReq := httptest.NewRequest(http.MethodPut, "/private/skills/"+id, bytes.NewReader(updateBody))
 	updateReq.Header.Set("Content-Type", "application/json")
-	updateRes, err := app.Test(updateReq, -1)
+	updateRes, err := app.Test(updateReq)
 	if err != nil || updateRes.StatusCode != fiber.StatusOK {
 		t.Fatalf("update failed: %v status=%d", err, updateRes.StatusCode)
 	}
 
 	// List all (should include private)
 	listReq := httptest.NewRequest(http.MethodGet, "/private/skills", nil)
-	listRes, err := app.Test(listReq, -1)
+	listRes, err := app.Test(listReq)
 	if err != nil || listRes.StatusCode != fiber.StatusOK {
 		t.Fatalf("list all failed: %v status=%d", err, listRes.StatusCode)
 	}
@@ -181,14 +183,14 @@ func TestUpdateDeleteAndListAllSkills(t *testing.T) {
 
 	// Delete skill
 	deleteReq := httptest.NewRequest(http.MethodDelete, "/private/skills/"+id, nil)
-	deleteRes, err := app.Test(deleteReq, -1)
+	deleteRes, err := app.Test(deleteReq)
 	if err != nil || deleteRes.StatusCode != fiber.StatusOK {
 		t.Fatalf("delete failed: %v status=%d", err, deleteRes.StatusCode)
 	}
 
 	// Verify empty after delete
 	listReq2 := httptest.NewRequest(http.MethodGet, "/private/skills", nil)
-	listRes2, err := app.Test(listReq2, -1)
+	listRes2, err := app.Test(listReq2)
 	if err != nil || listRes2.StatusCode != fiber.StatusOK {
 		t.Fatalf("list after delete failed: %v status=%d", err, listRes2.StatusCode)
 	}
@@ -210,9 +212,9 @@ func TestUpdateSkillNotFound(t *testing.T) {
 	app.Put("/private/skills/:id", UpdateSkill)
 
 	body, _ := json.Marshal(map[string]any{"title": "X"})
-	req := httptest.NewRequest(http.MethodPut, "/private/skills/nonexistent-id", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPut, "/private/skills/00000000-0000-0000-0000-000000000099", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -226,8 +228,8 @@ func TestDeleteSkillNotFound(t *testing.T) {
 	app := fiber.New()
 	app.Delete("/private/skills/:id", DeleteSkill)
 
-	req := httptest.NewRequest(http.MethodDelete, "/private/skills/nonexistent-id", nil)
-	res, err := app.Test(req, -1)
+	req := httptest.NewRequest(http.MethodDelete, "/private/skills/00000000-0000-0000-0000-000000000099", nil)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -246,18 +248,18 @@ func TestListPublicSkillsFiltersPrivate(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{
 		"title":      "Skill Privado",
 		"tags":       []string{"skill"},
-		"visibility": "private",
+		"visibility": constants.VisibilityPrivate,
 	})
 	req := httptest.NewRequest(http.MethodPost, "/private/skills", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil || res.StatusCode != fiber.StatusOK {
 		t.Fatalf("create failed: err=%v status=%d", err, res.StatusCode)
 	}
 
 	// List public — should be empty
 	listReq := httptest.NewRequest(http.MethodGet, "/skills", nil)
-	listRes, err := app.Test(listReq, -1)
+	listRes, err := app.Test(listReq)
 	if err != nil || listRes.StatusCode != fiber.StatusOK {
 		t.Fatalf("list failed: err=%v status=%d", err, listRes.StatusCode)
 	}

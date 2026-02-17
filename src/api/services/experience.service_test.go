@@ -9,7 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"backend-yonathan/src/pkg/constants"
+
+	"github.com/gofiber/fiber/v3"
 )
 
 func TestCreateAndListPublicExperiences(t *testing.T) {
@@ -24,12 +26,12 @@ func TestCreateAndListPublicExperiences(t *testing.T) {
 		"summary":    "Backend para portafolio",
 		"body":       "Detalle del proyecto",
 		"tags":       []string{"go", "api"},
-		"visibility": "public",
+		"visibility": constants.VisibilityPublic,
 	})
 
 	createReq := httptest.NewRequest(http.MethodPost, "/private/experiences", bytes.NewReader(body))
 	createReq.Header.Set("Content-Type", "application/json")
-	createRes, err := app.Test(createReq, -1)
+	createRes, err := app.Test(createReq)
 	if err != nil {
 		t.Fatalf("unexpected create error: %v", err)
 	}
@@ -38,7 +40,7 @@ func TestCreateAndListPublicExperiences(t *testing.T) {
 	}
 
 	listReq := httptest.NewRequest(http.MethodGet, "/experiences", nil)
-	listRes, err := app.Test(listReq, -1)
+	listRes, err := app.Test(listReq)
 	if err != nil {
 		t.Fatalf("unexpected list error: %v", err)
 	}
@@ -57,7 +59,7 @@ func TestCreateExperienceRejectsMissingTitle(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/private/experiences", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected create error: %v", err)
 	}
@@ -79,11 +81,11 @@ func TestUpdateDeleteAndListAllExperiences(t *testing.T) {
 		"summary":    "Summary",
 		"body":       "Body",
 		"tags":       []string{"go"},
-		"visibility": "public",
+		"visibility": constants.VisibilityPublic,
 	})
 	createReq := httptest.NewRequest(http.MethodPost, "/private/experiences", bytes.NewReader(createBody))
 	createReq.Header.Set("Content-Type", "application/json")
-	createRes, err := app.Test(createReq, -1)
+	createRes, err := app.Test(createReq)
 	if err != nil || createRes.StatusCode != fiber.StatusOK {
 		t.Fatalf("create failed: %v status=%d", err, createRes.StatusCode)
 	}
@@ -103,23 +105,23 @@ func TestUpdateDeleteAndListAllExperiences(t *testing.T) {
 		"summary":    "Summary 2",
 		"body":       "Body 2",
 		"tags":       []string{"go", "api"},
-		"visibility": "private",
+		"visibility": constants.VisibilityPrivate,
 	})
 	updateReq := httptest.NewRequest(http.MethodPut, "/private/experiences/"+id, bytes.NewReader(updateBody))
 	updateReq.Header.Set("Content-Type", "application/json")
-	updateRes, err := app.Test(updateReq, -1)
+	updateRes, err := app.Test(updateReq)
 	if err != nil || updateRes.StatusCode != fiber.StatusOK {
 		t.Fatalf("update failed: %v status=%d", err, updateRes.StatusCode)
 	}
 
 	listReq := httptest.NewRequest(http.MethodGet, "/private/experiences", nil)
-	listRes, err := app.Test(listReq, -1)
+	listRes, err := app.Test(listReq)
 	if err != nil || listRes.StatusCode != fiber.StatusOK {
 		t.Fatalf("list all failed: %v status=%d", err, listRes.StatusCode)
 	}
 
 	deleteReq := httptest.NewRequest(http.MethodDelete, "/private/experiences/"+id, nil)
-	deleteRes, err := app.Test(deleteReq, -1)
+	deleteRes, err := app.Test(deleteReq)
 	if err != nil || deleteRes.StatusCode != fiber.StatusOK {
 		t.Fatalf("delete failed: %v status=%d", err, deleteRes.StatusCode)
 	}

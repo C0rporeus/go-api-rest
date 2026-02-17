@@ -3,6 +3,7 @@ package services
 import (
 	"backend-yonathan/src/pkg/apiresponse"
 	"backend-yonathan/src/pkg/constants"
+	"backend-yonathan/src/pkg/sanitizer"
 	"context"
 	"fmt"
 	"net"
@@ -10,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // dnsResolver abstracts net.Resolver for testability.
@@ -37,10 +38,13 @@ var newDNSResolver = func() dnsResolver {
 // @Success      200  {object}  map[string]interface{}  "domain, ipv4, ipv6, resolved"
 // @Failure      400  {object}  map[string]interface{}
 // @Router       /api/tools/dns/resolve [get]
-func ResolveDomain(c *fiber.Ctx) error {
+func ResolveDomain(c fiber.Ctx) error {
 	domain := strings.TrimSpace(c.Query("domain"))
 	if domain == "" {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "missing_domain", "El parametro 'domain' es requerido", nil)
+	}
+	if !sanitizer.IsValidDomain(domain) {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_domain", "Formato de dominio invalido", nil)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), constants.DefaultDNSTimeout)
@@ -80,10 +84,13 @@ func ResolveDomain(c *fiber.Ctx) error {
 // @Success      200  {object}  map[string]interface{}  "domain, recordType, records, timestamp"
 // @Failure      400  {object}  map[string]interface{}
 // @Router       /api/tools/dns/propagation [get]
-func CheckPropagation(c *fiber.Ctx) error {
+func CheckPropagation(c fiber.Ctx) error {
 	domain := strings.TrimSpace(c.Query("domain"))
 	if domain == "" {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "missing_domain", "El parametro 'domain' es requerido", nil)
+	}
+	if !sanitizer.IsValidDomain(domain) {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_domain", "Formato de dominio invalido", nil)
 	}
 
 	recordType := strings.ToUpper(strings.TrimSpace(c.Query("type", "A")))
@@ -149,10 +156,13 @@ func CheckPropagation(c *fiber.Ctx) error {
 // @Success      200  {object}  map[string]interface{}  "domain, mx, spf, dkim, dmarc"
 // @Failure      400  {object}  map[string]interface{}
 // @Router       /api/tools/dns/mail-records [get]
-func GetMailRecords(c *fiber.Ctx) error {
+func GetMailRecords(c fiber.Ctx) error {
 	domain := strings.TrimSpace(c.Query("domain"))
 	if domain == "" {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "missing_domain", "El parametro 'domain' es requerido", nil)
+	}
+	if !sanitizer.IsValidDomain(domain) {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_domain", "Formato de dominio invalido", nil)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), constants.DefaultDNSTimeout)
@@ -220,7 +230,7 @@ func GetMailRecords(c *fiber.Ctx) error {
 // @Success      200  {object}  map[string]interface{}  "ip, results"
 // @Failure      400  {object}  map[string]interface{}
 // @Router       /api/tools/dns/blacklist [get]
-func CheckBlacklist(c *fiber.Ctx) error {
+func CheckBlacklist(c fiber.Ctx) error {
 	ip := strings.TrimSpace(c.Query("ip"))
 	if ip == "" {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "missing_ip", "El parametro 'ip' es requerido", nil)

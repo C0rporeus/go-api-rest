@@ -5,11 +5,11 @@ import (
 	"backend-yonathan/src/pkg/apiresponse"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 func JWTProtected() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		authHeader := c.Get("Authorization")
 
 		if authHeader == "" {

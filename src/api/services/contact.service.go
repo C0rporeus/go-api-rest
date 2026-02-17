@@ -2,11 +2,12 @@ package services
 
 import (
 	"backend-yonathan/src/pkg/apiresponse"
+	"backend-yonathan/src/pkg/constants"
+	"backend-yonathan/src/pkg/sanitizer"
 	"log"
-	"net/mail"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type contactPayload struct {
@@ -14,11 +15,6 @@ type contactPayload struct {
 	Email   string `json:"email"`
 	Message string `json:"message"`
 }
-
-const (
-	contactNameMinLen = 5
-	contactMsgMaxLen  = 500
-)
 
 // SubmitContact godoc
 // @Summary      Enviar formulario de contacto
@@ -30,32 +26,37 @@ const (
 // @Success      200  {object}  map[string]bool  "sent"
 // @Failure      400  {object}  map[string]interface{}
 // @Router       /api/contact [post]
-func SubmitContact(c *fiber.Ctx) error {
+func SubmitContact(c fiber.Ctx) error {
 	var payload contactPayload
-	if err := c.BodyParser(&payload); err != nil {
+	if err := c.Bind().Body(&payload); err != nil {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_payload", "Payload invalido", err.Error())
 	}
 
-	payload.Name = strings.TrimSpace(payload.Name)
-	payload.Email = strings.TrimSpace(payload.Email)
-	payload.Message = strings.TrimSpace(payload.Message)
+	payload.Email = strings.TrimSpace(strings.ToLower(payload.Email))
 
-	if len(payload.Name) < contactNameMinLen {
-		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_name",
-			"El nombre debe tener al menos 5 caracteres", nil)
+	if sanitizer.ContainsDangerousPatterns(payload.Name) || sanitizer.ContainsDangerousPatterns(payload.Message) {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "dangerous_input",
+			"El contenido contiene patrones no permitidos", nil)
 	}
-	if _, err := mail.ParseAddress(payload.Email); err != nil {
+
+	payload.Name = sanitizer.SanitizePlainText(payload.Name, constants.MaxContactName)
+	if len(payload.Name) < constants.MinContactName {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_name",
+			"El nombre debe tener al menos 2 caracteres", nil)
+	}
+	if !sanitizer.IsValidEmail(payload.Email) {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_email",
 			"Introduce un correo electronico valido", nil)
 	}
-	if payload.Message == "" {
+	if len(strings.TrimSpace(payload.Message)) == 0 {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "missing_message",
 			"El mensaje es requerido", nil)
 	}
-	if len(payload.Message) > contactMsgMaxLen {
+	if len(payload.Message) > constants.MaxMessageLength {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "message_too_long",
 			"El mensaje no puede tener mas de 500 caracteres", nil)
 	}
+	payload.Message = sanitizer.SanitizePlainText(payload.Message, constants.MaxMessageLength)
 
 	logContactMessage(payload)
 

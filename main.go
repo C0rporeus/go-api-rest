@@ -3,6 +3,7 @@ package main
 import (
 	"backend-yonathan/src/api/handlers"
 	"backend-yonathan/src/pkg/apiresponse"
+	"backend-yonathan/src/pkg/constants"
 	"backend-yonathan/src/pkg/telemetry"
 	"encoding/json"
 	"errors"
@@ -13,10 +14,12 @@ import (
 
 	_ "backend-yonathan/docs"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/helmet"
+	"github.com/gofiber/fiber/v3/middleware/limiter"
 	"github.com/google/uuid"
-	"github.com/gofiber/swagger"
+	swaggo "github.com/gofiber/contrib/v3/swaggo"
 	"github.com/joho/godotenv"
 )
 
@@ -38,7 +41,8 @@ func init() {
 
 func main() {
 	app := fiber.New(fiber.Config{
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
+		BodyLimit: constants.BodyLimitDefault,
+		ErrorHandler: func(c fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			var fiberErr *fiber.Error
 			if errors.As(err, &fiberErr) {
@@ -48,18 +52,33 @@ func main() {
 		},
 	})
 
+	// Security headers (X-Content-Type-Options, X-Frame-Options, CSP, etc.)
+	app.Use(helmet.New())
+
 	allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
 	if allowedOrigins == "" {
 		allowedOrigins = "http://localhost:3000"
 	}
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     allowedOrigins,
-		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
-		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Request-ID",
-		ExposeHeaders:    "X-Request-ID",
+		AllowOrigins:     strings.Split(allowedOrigins, ","),
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Request-ID"},
+		ExposeHeaders:    []string{"X-Request-ID"},
 		AllowCredentials: false,
 	}))
-	app.Use(func(c *fiber.Ctx) error {
+
+	// Global rate limiter
+	app.Use(limiter.New(limiter.Config{
+		Max:        constants.RateLimitGlobalMax,
+		Expiration: time.Duration(constants.RateLimitGlobalWindow) * time.Second,
+		LimitReached: func(c fiber.Ctx) error {
+			return apiresponse.Error(c, fiber.StatusTooManyRequests,
+				"rate_limit_exceeded",
+				"Demasiadas solicitudes. Intenta de nuevo en un momento.",
+				nil)
+		},
+	}))
+	app.Use(func(c fiber.Ctx) error {
 		requestID := c.Get("X-Request-ID")
 		if requestID == "" {
 			requestID = uuid.NewString()
@@ -96,7 +115,7 @@ func main() {
 	})
 
 	handlers.SetupRoutes(app)
-	app.Get("/swagger/*", swagger.HandlerDefault)
+	app.Get("/swagger/*", swaggo.HandlerDefault)
 
 	port := os.Getenv("PORT")
 	if port == "" {

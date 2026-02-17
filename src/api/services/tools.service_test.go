@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 func TestEncodeBase64(t *testing.T) {
@@ -17,7 +17,7 @@ func TestEncodeBase64(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{"value": "hola"})
 	req := httptest.NewRequest(http.MethodPost, "/encode", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected test error: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestDecodeBase64InvalidInput(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{"value": "%%%invalid%%%"})
 	req := httptest.NewRequest(http.MethodPost, "/decode", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected test error: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestGenerateUUIDv4(t *testing.T) {
 	app.Get("/uuid", GenerateUUIDv4)
 
 	req := httptest.NewRequest(http.MethodGet, "/uuid", nil)
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected test error: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestGenerateSelfSignedCert(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/cert", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected test error: %v", err)
 	}

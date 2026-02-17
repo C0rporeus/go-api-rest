@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // mockResolver implements dnsResolver for deterministic, offline tests.
@@ -60,7 +60,7 @@ func TestResolveDomainMissingParam(t *testing.T) {
 	app.Get("/resolve", ResolveDomain)
 
 	req := httptest.NewRequest(http.MethodGet, "/resolve", nil)
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected test error: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestResolveDomainValid(t *testing.T) {
 		app.Get("/resolve", ResolveDomain)
 
 		req := httptest.NewRequest(http.MethodGet, "/resolve?domain=example.com", nil)
-		res, err := app.Test(req, -1)
+		res, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("unexpected test error: %v", err)
 		}
@@ -110,7 +110,7 @@ func TestCheckPropagationMissingDomain(t *testing.T) {
 	app.Get("/propagation", CheckPropagation)
 
 	req := httptest.NewRequest(http.MethodGet, "/propagation", nil)
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected test error: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestCheckPropagationInvalidType(t *testing.T) {
 	app.Get("/propagation", CheckPropagation)
 
 	req := httptest.NewRequest(http.MethodGet, "/propagation?domain=example.com&type=INVALID", nil)
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected test error: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestCheckPropagationValidA(t *testing.T) {
 		app.Get("/propagation", CheckPropagation)
 
 		req := httptest.NewRequest(http.MethodGet, "/propagation?domain=example.com&type=A", nil)
-		res, err := app.Test(req, -1)
+		res, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("unexpected test error: %v", err)
 		}
@@ -169,7 +169,7 @@ func TestGetMailRecordsMissingDomain(t *testing.T) {
 	app.Get("/mail", GetMailRecords)
 
 	req := httptest.NewRequest(http.MethodGet, "/mail", nil)
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected test error: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestGetMailRecordsValid(t *testing.T) {
 		app.Get("/mail", GetMailRecords)
 
 		req := httptest.NewRequest(http.MethodGet, "/mail?domain=example.com", nil)
-		res, err := app.Test(req, -1)
+		res, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("unexpected test error: %v", err)
 		}
@@ -215,7 +215,7 @@ func TestCheckBlacklistMissingIP(t *testing.T) {
 	app.Get("/blacklist", CheckBlacklist)
 
 	req := httptest.NewRequest(http.MethodGet, "/blacklist", nil)
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected test error: %v", err)
 	}
@@ -229,7 +229,7 @@ func TestCheckBlacklistInvalidIP(t *testing.T) {
 	app.Get("/blacklist", CheckBlacklist)
 
 	req := httptest.NewRequest(http.MethodGet, "/blacklist?ip=not-an-ip", nil)
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected test error: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestCheckBlacklistValidIP(t *testing.T) {
 		app.Get("/blacklist", CheckBlacklist)
 
 		req := httptest.NewRequest(http.MethodGet, "/blacklist?ip=8.8.8.8", nil)
-		res, err := app.Test(req, -1)
+		res, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("unexpected test error: %v", err)
 		}

@@ -6,18 +6,18 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 func TestErrorResponse(t *testing.T) {
 	app := fiber.New()
-	app.Get("/err", func(c *fiber.Ctx) error {
+	app.Get("/err", func(c fiber.Ctx) error {
 		c.Locals("requestid", "req-1")
 		return Error(c, fiber.StatusBadRequest, "bad_request", "invalid", "detail")
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/err", nil)
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -36,12 +36,12 @@ func TestErrorResponse(t *testing.T) {
 
 func TestSuccessResponse(t *testing.T) {
 	app := fiber.New()
-	app.Get("/ok", func(c *fiber.Ctx) error {
+	app.Get("/ok", func(c fiber.Ctx) error {
 		return Success(c, fiber.Map{"ok": true})
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/ok", nil)
-	res, err := app.Test(req, -1)
+	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

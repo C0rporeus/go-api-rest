@@ -3,6 +3,7 @@ package services
 import (
 	"backend-yonathan/src/pkg/apiresponse"
 	"backend-yonathan/src/pkg/constants"
+	"backend-yonathan/src/pkg/sanitizer"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -10,9 +11,10 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"math/big"
+	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	pkcs12 "software.sslmate.com/src/go-pkcs12"
 )
@@ -38,10 +40,15 @@ type certRequest struct {
 // @Success      200  {object}  map[string]string  "input, encoded"
 // @Failure      400  {object}  map[string]interface{}
 // @Router       /api/tools/base64/encode [post]
-func EncodeBase64(c *fiber.Ctx) error {
+func EncodeBase64(c fiber.Ctx) error {
 	var payload base64Request
-	if err := c.BodyParser(&payload); err != nil {
+	if err := c.Bind().Body(&payload); err != nil {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_payload", "Payload invalido", err.Error())
+	}
+
+	if len(payload.Value) > constants.MaxBase64InputSize {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "input_too_large",
+			"El texto excede el tamano maximo permitido", nil)
 	}
 
 	return apiresponse.Success(c, fiber.Map{
@@ -60,10 +67,15 @@ func EncodeBase64(c *fiber.Ctx) error {
 // @Success      200  {object}  map[string]string  "input, decoded"
 // @Failure      400  {object}  map[string]interface{}
 // @Router       /api/tools/base64/decode [post]
-func DecodeBase64(c *fiber.Ctx) error {
+func DecodeBase64(c fiber.Ctx) error {
 	var payload base64Request
-	if err := c.BodyParser(&payload); err != nil {
+	if err := c.Bind().Body(&payload); err != nil {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_payload", "Payload invalido", err.Error())
+	}
+
+	if len(payload.Value) > constants.MaxBase64InputSize {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "input_too_large",
+			"El texto excede el tamano maximo permitido", nil)
 	}
 
 	decoded, err := base64.StdEncoding.DecodeString(payload.Value)
@@ -84,7 +96,7 @@ func DecodeBase64(c *fiber.Ctx) error {
 // @Produce      json
 // @Success      200  {object}  map[string]string  "uuid"
 // @Router       /api/tools/uuid/v4 [get]
-func GenerateUUIDv4(c *fiber.Ctx) error {
+func GenerateUUIDv4(c fiber.Ctx) error {
 	return apiresponse.Success(c, fiber.Map{
 		"uuid": uuid.NewString(),
 	})
@@ -101,11 +113,14 @@ func GenerateUUIDv4(c *fiber.Ctx) error {
 // @Failure      400  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/tools/certs/self-signed [post]
-func GenerateSelfSignedCert(c *fiber.Ctx) error {
+func GenerateSelfSignedCert(c fiber.Ctx) error {
 	var payload certRequest
-	if err := c.BodyParser(&payload); err != nil {
+	if err := c.Bind().Body(&payload); err != nil {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_payload", "Payload invalido", err.Error())
 	}
+
+	payload.CommonName = sanitizer.SanitizePlainText(strings.TrimSpace(payload.CommonName), constants.MaxCertCommonName)
+	payload.Organization = sanitizer.SanitizePlainText(strings.TrimSpace(payload.Organization), constants.MaxCertOrgLength)
 
 	if payload.CommonName == "" {
 		payload.CommonName = constants.DefaultCertCommonName
@@ -116,8 +131,15 @@ func GenerateSelfSignedCert(c *fiber.Ctx) error {
 	if payload.ValidDays <= 0 {
 		payload.ValidDays = constants.DefaultCertValidDays
 	}
+	if payload.ValidDays > constants.MaxCertValidDays {
+		payload.ValidDays = constants.MaxCertValidDays
+	}
 	if payload.Password == "" {
 		payload.Password = constants.DefaultCertPassword
+	}
+	if len(payload.Password) > constants.MaxPasswordLength {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "password_too_long",
+			"La contrasena del certificado excede el largo maximo", nil)
 	}
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, constants.DefaultCertKeyBits)

@@ -4,15 +4,17 @@ import (
 	userModel "backend-yonathan/src/models"
 	"backend-yonathan/src/pkg/apiresponse"
 	"backend-yonathan/src/pkg/constants"
+	"backend-yonathan/src/pkg/sanitizer"
 	jwtManager "backend-yonathan/src/pkg/utils"
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -28,6 +30,14 @@ var (
 		return dbClient.Query(context.Background(), input)
 	}
 )
+
+func respondWithToken(c fiber.Ctx, userID, username string) error {
+	token, err := jwtManager.GenerateToken(userID, username)
+	if err != nil {
+		return apiresponse.Error(c, fiber.StatusInternalServerError, "token_generation_failed", "No se pudo generar el token", err.Error())
+	}
+	return apiresponse.Success(c, fiber.Map{"token": token})
+}
 
 func SaveUser(dbClient *dynamodb.Client, user userModel.User) error {
 	if user.UserId == "" {
@@ -122,10 +132,24 @@ func GetUserByEmail(dbClient *dynamodb.Client, email string) (userModel.User, er
 // @Failure      400  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/register [post]
-func Register(c *fiber.Ctx, dbClient *dynamodb.Client) error {
+func Register(c fiber.Ctx, dbClient *dynamodb.Client) error {
 	var user userModel.User
-	if err := c.BodyParser(&user); err != nil {
+	if err := c.Bind().Body(&user); err != nil {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_payload", "Payload invalido", err.Error())
+	}
+
+	user.Email = strings.TrimSpace(strings.ToLower(user.Email))
+	user.UserName = sanitizer.SanitizePlainText(user.UserName, constants.MaxTitleLength)
+
+	if !sanitizer.IsValidEmail(user.Email) {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_email", "Formato de email invalido", nil)
+	}
+	if !sanitizer.IsValidPassword(user.Password) {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "weak_password",
+			"La contrasena debe tener al menos 8 caracteres, una mayuscula, una minuscula y un numero", nil)
+	}
+	if user.UserName == "" {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_username", "El nombre de usuario es requerido", nil)
 	}
 
 	_, err := GetUserByEmail(dbClient, user.Email)
@@ -142,12 +166,7 @@ func Register(c *fiber.Ctx, dbClient *dynamodb.Client) error {
 	if err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "save_user_failed", "No se pudo registrar el usuario", err.Error())
 	}
-	token, err := jwtManager.GenerateToken(user.UserId, user.UserName)
-	if err != nil {
-		return apiresponse.Error(c, fiber.StatusInternalServerError, "token_generation_failed", "No se pudo generar el token", err.Error())
-	}
-
-	return apiresponse.Success(c, fiber.Map{"token": token})
+	return respondWithToken(c, user.UserId, user.UserName)
 }
 
 // Login godoc
@@ -161,13 +180,22 @@ func Register(c *fiber.Ctx, dbClient *dynamodb.Client) error {
 // @Failure      400  {object}  map[string]interface{}
 // @Failure      401  {object}  map[string]interface{}
 // @Router       /api/login [post]
-func Login(c *fiber.Ctx, dbClient *dynamodb.Client) error {
+func Login(c fiber.Ctx, dbClient *dynamodb.Client) error {
 	var loginRequest struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
-	if err := c.BodyParser(&loginRequest); err != nil {
+	if err := c.Bind().Body(&loginRequest); err != nil {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_payload", "Payload invalido", err.Error())
+	}
+
+	loginRequest.Email = strings.TrimSpace(strings.ToLower(loginRequest.Email))
+
+	if !sanitizer.IsValidEmail(loginRequest.Email) {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_email", "Formato de email invalido", nil)
+	}
+	if loginRequest.Password == "" || len(loginRequest.Password) > constants.MaxPasswordLength {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_password", "Contrasena invalida", nil)
 	}
 
 	user, err := GetUserByEmail(dbClient, loginRequest.Email)
@@ -180,11 +208,7 @@ func Login(c *fiber.Ctx, dbClient *dynamodb.Client) error {
 		return apiresponse.Error(c, fiber.StatusUnauthorized, "invalid_credentials", "Unauthorized", nil)
 	}
 
-	token, err := jwtManager.GenerateToken(user.UserId, user.UserName)
-	if err != nil {
-		return apiresponse.Error(c, fiber.StatusInternalServerError, "token_generation_failed", "No se pudo generar el token", err.Error())
-	}
-	return apiresponse.Success(c, fiber.Map{"token": token})
+	return respondWithToken(c, user.UserId, user.UserName)
 }
 
 // GetCurrentUser godoc
@@ -196,7 +220,7 @@ func Login(c *fiber.Ctx, dbClient *dynamodb.Client) error {
 // @Success      200  {object}  map[string]string
 // @Failure      401  {object}  map[string]interface{}
 // @Router       /api/private/me [get]
-func GetCurrentUser(c *fiber.Ctx) error {
+func GetCurrentUser(c fiber.Ctx) error {
 	return apiresponse.Success(c, fiber.Map{
 		"userId":   c.Locals("userId"),
 		"username": c.Locals("username"),
@@ -213,18 +237,13 @@ func GetCurrentUser(c *fiber.Ctx) error {
 // @Failure      401  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/private/refresh [post]
-func RefreshToken(c *fiber.Ctx) error {
+func RefreshToken(c fiber.Ctx) error {
 	userId, _ := c.Locals("userId").(string)
 	username, _ := c.Locals("username").(string)
 
-	if userId == "" {
+	if userId == "" || username == "" {
 		return apiresponse.Error(c, fiber.StatusUnauthorized, "invalid_session", "Sesion invalida", nil)
 	}
 
-	token, err := jwtManager.GenerateToken(userId, username)
-	if err != nil {
-		return apiresponse.Error(c, fiber.StatusInternalServerError, "token_generation_failed", "No se pudo renovar el token", err.Error())
-	}
-
-	return apiresponse.Success(c, fiber.Map{"token": token})
+	return respondWithToken(c, userId, username)
 }

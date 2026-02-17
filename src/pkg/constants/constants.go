@@ -61,9 +61,45 @@ const APIContactPath = "/api/contact"
 
 // Data storage defaults.
 const (
-	DefaultDataDir          = "data"
-	ExperiencesFilename     = "experiences.json"
-	DataDirEnvVar           = "PORTFOLIO_DATA_DIR"
+	DefaultDataDir      = "data"
+	ExperiencesFilename = "experiences.json"
+	DataDirEnvVar       = "PORTFOLIO_DATA_DIR"
+)
+
+// Input validation limits.
+const (
+	MaxTitleLength     = 200
+	MaxSummaryLength   = 500
+	MaxBodyLength      = 50000
+	MaxTagLength       = 50
+	MaxTagCount        = 20
+	MaxImageURLCount   = 10
+	MaxBase64InputSize = 1_000_000
+	MaxCertCommonName  = 100
+	MaxCertOrgLength   = 100
+	MaxCertValidDays   = 3650
+	MinPasswordLength  = 8
+	MaxPasswordLength  = 128
+	MaxEmailLength     = 254
+	MaxMessageLength   = 500
+	MaxContactName     = 100
+	MinContactName     = 2
+)
+
+// Rate limiting defaults.
+const (
+	RateLimitAuthMax      = 10
+	RateLimitAuthWindow   = 60
+	RateLimitToolsMax     = 30
+	RateLimitToolsWindow  = 60
+	RateLimitGlobalMax    = 100
+	RateLimitGlobalWindow = 60
+)
+
+// Request body size limits (in bytes).
+const (
+	BodyLimitDefault = 1 * 1024 * 1024
+	BodyLimitCerts   = 512 * 1024
 )
 
 // DefaultJWTExpiryHours is the fallback JWT token expiry in hours.

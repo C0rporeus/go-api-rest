@@ -4,7 +4,7 @@ import (
 	"backend-yonathan/src/pkg/apiresponse"
 	"backend-yonathan/src/pkg/telemetry"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // GetOpsMetrics godoc
@@ -16,7 +16,7 @@ import (
 // @Success      200  {object}  map[string]interface{}
 // @Failure      401  {object}  map[string]interface{}
 // @Router       /api/private/ops/metrics [get]
-func GetOpsMetrics(c *fiber.Ctx) error {
+func GetOpsMetrics(c fiber.Ctx) error {
 	return apiresponse.Success(c, telemetry.Snapshot())
 }
 
@@ -29,7 +29,7 @@ func GetOpsMetrics(c *fiber.Ctx) error {
 // @Success      200  {object}  map[string]interface{}
 // @Failure      401  {object}  map[string]interface{}
 // @Router       /api/private/ops/alerts [get]
-func GetOpsAlerts(c *fiber.Ctx) error {
+func GetOpsAlerts(c fiber.Ctx) error {
 	return apiresponse.Success(c, telemetry.Alerts())
 }
 
@@ -42,7 +42,7 @@ func GetOpsAlerts(c *fiber.Ctx) error {
 // @Success      200  {object}  map[string]interface{}
 // @Failure      401  {object}  map[string]interface{}
 // @Router       /api/private/ops/health [get]
-func GetOpsHealth(c *fiber.Ctx) error {
+func GetOpsHealth(c fiber.Ctx) error {
 	return apiresponse.Success(c, telemetry.Health())
 }
 
@@ -55,7 +55,7 @@ func GetOpsHealth(c *fiber.Ctx) error {
 // @Success      200  {object}  map[string]interface{}
 // @Failure      401  {object}  map[string]interface{}
 // @Router       /api/private/ops/history [get]
-func GetOpsHistory(c *fiber.Ctx) error {
+func GetOpsHistory(c fiber.Ctx) error {
 	return apiresponse.Success(c, telemetry.History())
 }
 
@@ -68,6 +68,6 @@ func GetOpsHistory(c *fiber.Ctx) error {
 // @Success      200  {object}  map[string]interface{}
 // @Failure      401  {object}  map[string]interface{}
 // @Router       /api/private/ops/summary [get]
-func GetOpsSummary(c *fiber.Ctx) error {
+func GetOpsSummary(c fiber.Ctx) error {
 	return apiresponse.Success(c, telemetry.Summary())
 }

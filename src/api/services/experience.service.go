@@ -4,10 +4,9 @@ import (
 	userModel "backend-yonathan/src/models"
 	"backend-yonathan/src/pkg/apiresponse"
 	"backend-yonathan/src/pkg/constants"
-	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
 
@@ -20,7 +19,7 @@ import (
 // @Success      304  "Not Modified"
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/experiences [get]
-func ListPublicExperiences(c *fiber.Ctx) error {
+func ListPublicExperiences(c fiber.Ctx) error {
 	experienceStoreLock.RLock()
 	defer experienceStoreLock.RUnlock()
 
@@ -55,7 +54,7 @@ func ListPublicExperiences(c *fiber.Ctx) error {
 // @Failure      401  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/private/experiences [get]
-func ListAllExperiences(c *fiber.Ctx) error {
+func ListAllExperiences(c fiber.Ctx) error {
 	experienceStoreLock.RLock()
 	defer experienceStoreLock.RUnlock()
 
@@ -78,12 +77,15 @@ func ListAllExperiences(c *fiber.Ctx) error {
 // @Failure      400  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/private/experiences [post]
-func CreateExperience(c *fiber.Ctx) error {
+func CreateExperience(c fiber.Ctx) error {
 	var payload experiencePayload
-	if err := c.BodyParser(&payload); err != nil {
+	if err := c.Bind().Body(&payload); err != nil {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_payload", "Payload invalido", err.Error())
 	}
-	if strings.TrimSpace(payload.Title) == "" {
+
+	sanitizePayload(&payload)
+
+	if payload.Title == "" {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "missing_title", "El titulo es requerido", nil)
 	}
 
@@ -98,12 +100,12 @@ func CreateExperience(c *fiber.Ctx) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	item := userModel.Experience{
 		ID:         uuid.NewString(),
-		Title:      strings.TrimSpace(payload.Title),
-		Summary:    strings.TrimSpace(payload.Summary),
-		Body:       strings.TrimSpace(payload.Body),
-		ImageURLs:  normalizeImageURLs(payload.ImageURLs),
+		Title:      payload.Title,
+		Summary:    payload.Summary,
+		Body:       payload.Body,
+		ImageURLs:  payload.ImageURLs,
 		Tags:       payload.Tags,
-		Visibility: normalizeVisibility(payload.Visibility),
+		Visibility: payload.Visibility,
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}
@@ -130,16 +132,18 @@ func CreateExperience(c *fiber.Ctx) error {
 // @Failure      404  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/private/experiences/{id} [put]
-func UpdateExperience(c *fiber.Ctx) error {
+func UpdateExperience(c fiber.Ctx) error {
 	id := c.Params("id")
-	if strings.TrimSpace(id) == "" {
-		return apiresponse.Error(c, fiber.StatusBadRequest, "missing_id", "El id es requerido", nil)
+	if !validatePayloadID(id) {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_id", "Formato de ID invalido", nil)
 	}
 
 	var payload experiencePayload
-	if err := c.BodyParser(&payload); err != nil {
+	if err := c.Bind().Body(&payload); err != nil {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_payload", "Payload invalido", err.Error())
 	}
+
+	sanitizePayload(&payload)
 
 	experienceStoreLock.Lock()
 	defer experienceStoreLock.Unlock()
@@ -151,14 +155,14 @@ func UpdateExperience(c *fiber.Ctx) error {
 
 	for i, item := range experiences {
 		if item.ID == id {
-			if strings.TrimSpace(payload.Title) != "" {
-				item.Title = strings.TrimSpace(payload.Title)
+			if payload.Title != "" {
+				item.Title = payload.Title
 			}
-			item.Summary = strings.TrimSpace(payload.Summary)
-			item.Body = strings.TrimSpace(payload.Body)
-			item.ImageURLs = normalizeImageURLs(payload.ImageURLs)
+			item.Summary = payload.Summary
+			item.Body = payload.Body
+			item.ImageURLs = payload.ImageURLs
 			item.Tags = payload.Tags
-			item.Visibility = normalizeVisibility(payload.Visibility)
+			item.Visibility = payload.Visibility
 			item.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 			experiences[i] = item
 
@@ -184,10 +188,10 @@ func UpdateExperience(c *fiber.Ctx) error {
 // @Failure      404  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/private/experiences/{id} [delete]
-func DeleteExperience(c *fiber.Ctx) error {
+func DeleteExperience(c fiber.Ctx) error {
 	id := c.Params("id")
-	if strings.TrimSpace(id) == "" {
-		return apiresponse.Error(c, fiber.StatusBadRequest, "missing_id", "El id es requerido", nil)
+	if !validatePayloadID(id) {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_id", "Formato de ID invalido", nil)
 	}
 
 	experienceStoreLock.Lock()
