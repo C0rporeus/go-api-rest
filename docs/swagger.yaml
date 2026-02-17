@@ -1,69 +1,929 @@
+basePath: /
 definitions:
-  userModel.User:
-    description: Modelo de usuario.
+  userModel.Experience:
     properties:
-      email:
+      body:
         type: string
-      password:
+      createdAt:
         type: string
-      userId:
+      id:
         type: string
-      username:
+      imageUrls:
+        items:
+          type: string
+        type: array
+      summary:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+      updatedAt:
+        type: string
+      visibility:
         type: string
     type: object
+host: localhost:3100
 info:
   contact: {}
+  description: API REST para portfolio personal de Yonathan Gutierrez
+  title: Portfolio API
+  version: "1.0"
 paths:
+  /api/contact:
+    post:
+      consumes:
+      - application/json
+      description: Recibe y valida un formulario de contacto (nombre, email, mensaje)
+      parameters:
+      - description: Datos de contacto
+        in: body
+        name: payload
+        required: true
+        schema:
+          properties:
+            email:
+              type: string
+            message:
+              type: string
+            name:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: sent
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Enviar formulario de contacto
+      tags:
+      - Contact
+  /api/experiences:
+    get:
+      description: Devuelve experiencias con visibility=public. Soporta ETag/If-None-Match.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: items
+          schema:
+            additionalProperties: true
+            type: object
+        "304":
+          description: Not Modified
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Listar experiencias publicas
+      tags:
+      - Experiences
   /api/login:
     post:
       consumes:
       - application/json
-      description: Login de usuarios api Yonathan Gutierrez Dev
+      description: Autentica con email/password y devuelve un JWT
       parameters:
-      - description: User
+      - description: Credenciales
         in: body
-        name: user
+        name: credentials
         required: true
         schema:
-          $ref: '#/definitions/userModel.User'
+          properties:
+            email:
+              type: string
+            password:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Login de usuarios
+      tags:
+      - Auth
+  /api/private/experiences:
+    get:
+      description: Devuelve todas las experiencias (publicas y privadas). Requiere
+        JWT.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: items
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Listar todas las experiencias
+      tags:
+      - Experiences
+    post:
+      consumes:
+      - application/json
+      description: Crea una nueva experiencia. Requiere JWT.
+      parameters:
+      - description: Datos
+        in: body
+        name: experience
+        required: true
+        schema:
+          properties:
+            body:
+              type: string
+            imageUrls:
+              items:
+                type: string
+              type: array
+            summary:
+              type: string
+            tags:
+              items:
+                type: string
+              type: array
+            title:
+              type: string
+            visibility:
+              type: string
+          type: object
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/userModel.User'
+            $ref: '#/definitions/userModel.Experience'
         "400":
-          description: bad request
+          description: Bad Request
           schema:
-            type: string
-      summary: Login de usuarios
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Crear experiencia
+      tags:
+      - Experiences
+  /api/private/experiences/{id}:
+    delete:
+      description: Elimina una experiencia por ID. Requiere JWT.
+      parameters:
+      - description: ID de la experiencia
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: deleted, id
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Eliminar experiencia
+      tags:
+      - Experiences
+    put:
+      consumes:
+      - application/json
+      description: Actualiza una experiencia por ID. Requiere JWT.
+      parameters:
+      - description: ID de la experiencia
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Datos
+        in: body
+        name: experience
+        required: true
+        schema:
+          properties:
+            body:
+              type: string
+            imageUrls:
+              items:
+                type: string
+              type: array
+            summary:
+              type: string
+            tags:
+              items:
+                type: string
+              type: array
+            title:
+              type: string
+            visibility:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/userModel.Experience'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Actualizar experiencia
+      tags:
+      - Experiences
+  /api/private/me:
+    get:
+      description: Devuelve userId y username del JWT actual
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Usuario autenticado
       tags:
       - Auth
+  /api/private/ops/alerts:
+    get:
+      description: Alertas activas basadas en umbrales de 5xx y auth failures. Requiere
+        JWT.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Alertas operativas
+      tags:
+      - Ops
+  /api/private/ops/health:
+    get:
+      description: Estado de salud con recomendaciones. Requiere JWT.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Estado de salud
+      tags:
+      - Ops
+  /api/private/ops/history:
+    get:
+      description: Historial de snapshots de salud. Requiere JWT.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Historial de estados
+      tags:
+      - Ops
+  /api/private/ops/metrics:
+    get:
+      description: Snapshot de request count, 5xx rate, auth failures. Requiere JWT.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Metricas operativas
+      tags:
+      - Ops
+  /api/private/ops/summary:
+    get:
+      description: Resumen agregado para semaforo de salud. Requiere JWT.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Resumen operativo
+      tags:
+      - Ops
+  /api/private/refresh:
+    post:
+      description: Genera un nuevo JWT a partir del token actual (debe ser valido)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Renovar token JWT
+      tags:
+      - Auth
+  /api/private/skills:
+    get:
+      description: Devuelve todas las experiencias con tag "skill". Requiere JWT.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: items
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Listar todas las skills
+      tags:
+      - Skills
+    post:
+      consumes:
+      - application/json
+      description: Crea una nueva skill. Agrega tag "skill" automaticamente. Requiere
+        JWT.
+      parameters:
+      - description: Datos
+        in: body
+        name: skill
+        required: true
+        schema:
+          properties:
+            body:
+              type: string
+            imageUrls:
+              items:
+                type: string
+              type: array
+            summary:
+              type: string
+            tags:
+              items:
+                type: string
+              type: array
+            title:
+              type: string
+            visibility:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/userModel.Experience'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Crear skill
+      tags:
+      - Skills
+  /api/private/skills/{id}:
+    delete:
+      description: Elimina una skill por ID. Requiere JWT.
+      parameters:
+      - description: ID de la skill
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: deleted, id
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Eliminar skill
+      tags:
+      - Skills
+    put:
+      consumes:
+      - application/json
+      description: Actualiza una skill por ID. Requiere JWT.
+      parameters:
+      - description: ID de la skill
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Datos
+        in: body
+        name: skill
+        required: true
+        schema:
+          properties:
+            body:
+              type: string
+            imageUrls:
+              items:
+                type: string
+              type: array
+            summary:
+              type: string
+            tags:
+              items:
+                type: string
+              type: array
+            title:
+              type: string
+            visibility:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/userModel.Experience'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Actualizar skill
+      tags:
+      - Skills
   /api/register:
     post:
       consumes:
       - application/json
-      description: Registro de usuarios api Yonathan Gutierrez Dev
+      description: Crea una cuenta nueva y devuelve un JWT
       parameters:
-      - description: User
+      - description: Datos de registro
         in: body
         name: user
         required: true
         schema:
-          $ref: '#/definitions/userModel.User'
+          properties:
+            email:
+              type: string
+            password:
+              type: string
+            username:
+              type: string
+          type: object
       produces:
       - application/json
       responses:
         "200":
-          description: OK
+          description: token
           schema:
-            $ref: '#/definitions/userModel.User'
+            additionalProperties:
+              type: string
+            type: object
         "400":
-          description: bad request
+          description: Bad Request
           schema:
-            type: string
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
       summary: Registro de usuarios
       tags:
       - Auth
+  /api/skills:
+    get:
+      description: Devuelve experiencias con tag "skill" y visibility=public. Soporta
+        ETag.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: items
+          schema:
+            additionalProperties: true
+            type: object
+        "304":
+          description: Not Modified
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Listar skills publicas
+      tags:
+      - Skills
+  /api/tools/base64/decode:
+    post:
+      consumes:
+      - application/json
+      description: Decodifica un string Base64
+      parameters:
+      - description: Texto en Base64
+        in: body
+        name: payload
+        required: true
+        schema:
+          properties:
+            value:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: input, decoded
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Decodificar Base64
+      tags:
+      - Tools
+  /api/tools/base64/encode:
+    post:
+      consumes:
+      - application/json
+      description: Codifica un string en Base64
+      parameters:
+      - description: Texto a codificar
+        in: body
+        name: payload
+        required: true
+        schema:
+          properties:
+            value:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: input, encoded
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Codificar Base64
+      tags:
+      - Tools
+  /api/tools/certs/self-signed:
+    post:
+      consumes:
+      - application/json
+      description: Genera un certificado X.509 autofirmado con PEM, DER y PFX
+      parameters:
+      - description: Parametros del certificado
+        in: body
+        name: payload
+        required: true
+        schema:
+          properties:
+            commonName:
+              type: string
+            organization:
+              type: string
+            password:
+              type: string
+            validDays:
+              type: integer
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: certPem, keyPem, certBase64, pfxBase64, password
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Generar certificado autofirmado
+      tags:
+      - Tools
+  /api/tools/dns/blacklist:
+    get:
+      description: Verifica una IPv4 contra 6 proveedores DNSBL en paralelo
+      parameters:
+      - description: Direccion IPv4
+        in: query
+        name: ip
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: ip, results
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Verificar blacklist DNSBL
+      tags:
+      - DNS
+  /api/tools/dns/mail-records:
+    get:
+      description: Consulta registros MX, SPF, DKIM y DMARC de un dominio
+      parameters:
+      - description: Dominio
+        in: query
+        name: domain
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: domain, mx, spf, dkim, dmarc
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Registros de correo
+      tags:
+      - DNS
+  /api/tools/dns/propagation:
+    get:
+      description: Consulta registros DNS por tipo (A, AAAA, CNAME, MX, NS, TXT)
+      parameters:
+      - description: Dominio
+        in: query
+        name: domain
+        required: true
+        type: string
+      - description: 'Tipo de registro (default: A)'
+        in: query
+        name: type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: domain, recordType, records, timestamp
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Verificar propagacion DNS
+      tags:
+      - DNS
+  /api/tools/dns/resolve:
+    get:
+      description: Resuelve un dominio a direcciones IPv4 e IPv6
+      parameters:
+      - description: Dominio a resolver
+        in: query
+        name: domain
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: domain, ipv4, ipv6, resolved
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Resolver dominio
+      tags:
+      - DNS
+  /api/tools/uuid/v4:
+    get:
+      description: Genera un UUID v4 aleatorio
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: uuid
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Generar UUID v4
+      tags:
+      - Tools
+securityDefinitions:
+  BearerAuth:
+    description: JWT token con formato "Bearer {token}"
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"
