@@ -1,0 +1,10 @@
+.env
+.env.*
+data/
+.air.toml
+.golangci.yaml
+scripts/
+.git
+.vscode/
+.cursor/
+tmp/
