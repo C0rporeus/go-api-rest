@@ -6,20 +6,21 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 
 	"backend-yonathan/src/pkg/constants"
+	"backend-yonathan/src/repository/memory"
 
 	"github.com/gofiber/fiber/v3"
 )
 
 func TestCreateAndListPublicExperiences(t *testing.T) {
-	t.Setenv("PORTFOLIO_DATA_DIR", filepath.Join(t.TempDir(), "data"))
+	repo := memory.NewExperienceRepository()
+	svc := NewExperienceService(repo)
 
 	app := fiber.New()
-	app.Post("/private/experiences", CreateExperience)
-	app.Get("/experiences", ListPublicExperiences)
+	app.Post("/private/experiences", svc.CreateExperience)
+	app.Get("/experiences", svc.ListPublicExperiences)
 
 	body, _ := json.Marshal(map[string]any{
 		"title":      "Proyecto API",
@@ -50,9 +51,11 @@ func TestCreateAndListPublicExperiences(t *testing.T) {
 }
 
 func TestCreateExperienceRejectsMissingTitle(t *testing.T) {
-	t.Setenv("PORTFOLIO_DATA_DIR", filepath.Join(t.TempDir(), "data"))
+	repo := memory.NewExperienceRepository()
+	svc := NewExperienceService(repo)
+
 	app := fiber.New()
-	app.Post("/private/experiences", CreateExperience)
+	app.Post("/private/experiences", svc.CreateExperience)
 
 	body, _ := json.Marshal(map[string]any{
 		"summary": "Sin titulo",
@@ -69,12 +72,14 @@ func TestCreateExperienceRejectsMissingTitle(t *testing.T) {
 }
 
 func TestUpdateDeleteAndListAllExperiences(t *testing.T) {
-	t.Setenv("PORTFOLIO_DATA_DIR", filepath.Join(t.TempDir(), "data"))
+	repo := memory.NewExperienceRepository()
+	svc := NewExperienceService(repo)
+
 	app := fiber.New()
-	app.Post("/private/experiences", CreateExperience)
-	app.Put("/private/experiences/:id", UpdateExperience)
-	app.Delete("/private/experiences/:id", DeleteExperience)
-	app.Get("/private/experiences", ListAllExperiences)
+	app.Post("/private/experiences", svc.CreateExperience)
+	app.Put("/private/experiences/:id", svc.UpdateExperience)
+	app.Delete("/private/experiences/:id", svc.DeleteExperience)
+	app.Get("/private/experiences", svc.ListAllExperiences)
 
 	createBody, _ := json.Marshal(map[string]any{
 		"title":      "Proyecto inicial",
@@ -124,5 +129,77 @@ func TestUpdateDeleteAndListAllExperiences(t *testing.T) {
 	deleteRes, err := app.Test(deleteReq)
 	if err != nil || deleteRes.StatusCode != fiber.StatusOK {
 		t.Fatalf("delete failed: %v status=%d", err, deleteRes.StatusCode)
+	}
+}
+
+func TestUpdateExperienceNotFound(t *testing.T) {
+	repo := memory.NewExperienceRepository()
+	svc := NewExperienceService(repo)
+
+	app := fiber.New()
+	app.Put("/private/experiences/:id", svc.UpdateExperience)
+
+	body, _ := json.Marshal(map[string]any{"title": "X"})
+	req := httptest.NewRequest(http.MethodPut, "/private/experiences/00000000-0000-0000-0000-000000000099", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusNotFound {
+		t.Fatalf("expected 404, got %d", res.StatusCode)
+	}
+}
+
+func TestDeleteExperienceNotFound(t *testing.T) {
+	repo := memory.NewExperienceRepository()
+	svc := NewExperienceService(repo)
+
+	app := fiber.New()
+	app.Delete("/private/experiences/:id", svc.DeleteExperience)
+
+	req := httptest.NewRequest(http.MethodDelete, "/private/experiences/00000000-0000-0000-0000-000000000099", nil)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusNotFound {
+		t.Fatalf("expected 404, got %d", res.StatusCode)
+	}
+}
+
+func TestListPublicExperiencesFiltersPrivate(t *testing.T) {
+	repo := memory.NewExperienceRepository()
+	svc := NewExperienceService(repo)
+
+	app := fiber.New()
+	app.Post("/private/experiences", svc.CreateExperience)
+	app.Get("/experiences", svc.ListPublicExperiences)
+
+	body, _ := json.Marshal(map[string]any{
+		"title":      "Private Exp",
+		"visibility": constants.VisibilityPrivate,
+	})
+	createReq := httptest.NewRequest(http.MethodPost, "/private/experiences", bytes.NewReader(body))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRes, err := app.Test(createReq)
+	if err != nil || createRes.StatusCode != fiber.StatusOK {
+		t.Fatalf("create failed: err=%v status=%d", err, createRes.StatusCode)
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/experiences", nil)
+	listRes, err := app.Test(listReq)
+	if err != nil || listRes.StatusCode != fiber.StatusOK {
+		t.Fatalf("list failed: err=%v status=%d", err, listRes.StatusCode)
+	}
+
+	raw, _ := io.ReadAll(listRes.Body)
+	var result map[string]any
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	items, ok := result["items"].([]any)
+	if !ok || len(items) != 0 {
+		t.Fatalf("expected 0 public experiences, got %v", result["items"])
 	}
 }

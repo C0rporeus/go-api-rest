@@ -1,21 +1,36 @@
 package services
 
 import (
-	userModel "backend-yonathan/src/models"
-	"backend-yonathan/src/pkg/apiresponse"
-	"backend-yonathan/src/pkg/constants"
+	"context"
+	"errors"
 	"strings"
 	"time"
+
+	models "backend-yonathan/src/models"
+	"backend-yonathan/src/pkg/apiresponse"
+	"backend-yonathan/src/pkg/constants"
+	"backend-yonathan/src/repository"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
 
+// SkillService handles skill CRUD business logic.
+// Skills are experiences that carry one of the recognized skill tags.
+type SkillService struct {
+	repo repository.ExperienceRepository
+}
+
+// NewSkillService creates a SkillService backed by the given ExperienceRepository.
+func NewSkillService(repo repository.ExperienceRepository) *SkillService {
+	return &SkillService{repo: repo}
+}
+
 func normalizeTagValue(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
-func isSkillExperience(item userModel.Experience) bool {
+func isSkillExperience(item models.Experience) bool {
 	for _, tag := range item.Tags {
 		normalized := normalizeTagValue(tag)
 		for _, skillTag := range constants.SkillTags {
@@ -38,11 +53,9 @@ func ensureSkillTag(tags []string) []string {
 		normalized = append(normalized, clean)
 		seen[clean] = true
 	}
-
 	if !seen["skill"] {
 		normalized = append(normalized, "skill")
 	}
-
 	return normalized
 }
 
@@ -55,17 +68,14 @@ func ensureSkillTag(tags []string) []string {
 // @Success      304  "Not Modified"
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/skills [get]
-func ListPublicSkills(c fiber.Ctx) error {
-	experienceStoreLock.RLock()
-	defer experienceStoreLock.RUnlock()
-
-	experiences, err := loadExperiences()
+func (s *SkillService) ListPublicSkills(c fiber.Ctx) error {
+	all, err := s.repo.List(context.Background())
 	if err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "load_skills_failed", "No se pudo cargar capacidades", err.Error())
 	}
 
-	skills := make([]userModel.Experience, 0, len(experiences))
-	for _, item := range experiences {
+	skills := make([]models.Experience, 0, len(all))
+	for _, item := range all {
 		if item.Visibility == constants.VisibilityPublic && isSkillExperience(item) {
 			skills = append(skills, item)
 		}
@@ -90,17 +100,14 @@ func ListPublicSkills(c fiber.Ctx) error {
 // @Failure      401  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/private/skills [get]
-func ListAllSkills(c fiber.Ctx) error {
-	experienceStoreLock.RLock()
-	defer experienceStoreLock.RUnlock()
-
-	experiences, err := loadExperiences()
+func (s *SkillService) ListAllSkills(c fiber.Ctx) error {
+	all, err := s.repo.List(context.Background())
 	if err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "load_skills_failed", "No se pudo cargar capacidades", err.Error())
 	}
 
-	skills := make([]userModel.Experience, 0, len(experiences))
-	for _, item := range experiences {
+	skills := make([]models.Experience, 0, len(all))
+	for _, item := range all {
 		if isSkillExperience(item) {
 			skills = append(skills, item)
 		}
@@ -121,7 +128,7 @@ func ListAllSkills(c fiber.Ctx) error {
 // @Failure      400  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/private/skills [post]
-func CreateSkill(c fiber.Ctx) error {
+func (s *SkillService) CreateSkill(c fiber.Ctx) error {
 	var payload experiencePayload
 	if err := c.Bind().Body(&payload); err != nil {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_payload", "Payload invalido", err.Error())
@@ -133,16 +140,8 @@ func CreateSkill(c fiber.Ctx) error {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "missing_title", "El titulo es requerido", nil)
 	}
 
-	experienceStoreLock.Lock()
-	defer experienceStoreLock.Unlock()
-
-	experiences, err := loadExperiences()
-	if err != nil {
-		return apiresponse.Error(c, fiber.StatusInternalServerError, "load_skills_failed", "No se pudo cargar capacidades", err.Error())
-	}
-
 	now := time.Now().UTC().Format(time.RFC3339)
-	item := userModel.Experience{
+	item := models.Experience{
 		ID:         uuid.NewString(),
 		Title:      payload.Title,
 		Summary:    payload.Summary,
@@ -154,8 +153,7 @@ func CreateSkill(c fiber.Ctx) error {
 		UpdatedAt:  now,
 	}
 
-	experiences = append(experiences, item)
-	if err := saveExperiences(experiences); err != nil {
+	if err := s.repo.Create(context.Background(), item); err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "save_skill_failed", "No se pudo guardar la capacidad", err.Error())
 	}
 
@@ -176,7 +174,7 @@ func CreateSkill(c fiber.Ctx) error {
 // @Failure      404  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/private/skills/{id} [put]
-func UpdateSkill(c fiber.Ctx) error {
+func (s *SkillService) UpdateSkill(c fiber.Ctx) error {
 	id := c.Params("id")
 	if !validatePayloadID(id) {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_id", "Formato de ID invalido", nil)
@@ -189,40 +187,36 @@ func UpdateSkill(c fiber.Ctx) error {
 
 	sanitizePayload(&payload)
 
-	experienceStoreLock.Lock()
-	defer experienceStoreLock.Unlock()
-
-	experiences, err := loadExperiences()
+	existing, err := s.repo.GetByID(context.Background(), id)
 	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return apiresponse.Error(c, fiber.StatusNotFound, "skill_not_found", "Capacidad no encontrada", nil)
+		}
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "load_skills_failed", "No se pudo cargar capacidades", err.Error())
 	}
 
-	for i, item := range experiences {
-		if item.ID != id {
-			continue
-		}
-		if !isSkillExperience(item) {
-			return apiresponse.Error(c, fiber.StatusNotFound, "skill_not_found", "Capacidad no encontrada", nil)
-		}
-
-		if payload.Title != "" {
-			item.Title = payload.Title
-		}
-		item.Summary = payload.Summary
-		item.Body = payload.Body
-		item.ImageURLs = payload.ImageURLs
-		item.Tags = ensureSkillTag(payload.Tags)
-		item.Visibility = payload.Visibility
-		item.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-		experiences[i] = item
-
-		if err := saveExperiences(experiences); err != nil {
-			return apiresponse.Error(c, fiber.StatusInternalServerError, "save_skill_failed", "No se pudo actualizar la capacidad", err.Error())
-		}
-		return apiresponse.Success(c, item)
+	if !isSkillExperience(existing) {
+		return apiresponse.Error(c, fiber.StatusNotFound, "skill_not_found", "Capacidad no encontrada", nil)
 	}
 
-	return apiresponse.Error(c, fiber.StatusNotFound, "skill_not_found", "Capacidad no encontrada", nil)
+	if payload.Title != "" {
+		existing.Title = payload.Title
+	}
+	existing.Summary = payload.Summary
+	existing.Body = payload.Body
+	existing.ImageURLs = payload.ImageURLs
+	existing.Tags = ensureSkillTag(payload.Tags)
+	existing.Visibility = payload.Visibility
+	existing.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+
+	if err := s.repo.Update(context.Background(), existing); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return apiresponse.Error(c, fiber.StatusNotFound, "skill_not_found", "Capacidad no encontrada", nil)
+		}
+		return apiresponse.Error(c, fiber.StatusInternalServerError, "save_skill_failed", "No se pudo actualizar la capacidad", err.Error())
+	}
+
+	return apiresponse.Success(c, existing)
 }
 
 // DeleteSkill godoc
@@ -237,35 +231,28 @@ func UpdateSkill(c fiber.Ctx) error {
 // @Failure      404  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/private/skills/{id} [delete]
-func DeleteSkill(c fiber.Ctx) error {
+func (s *SkillService) DeleteSkill(c fiber.Ctx) error {
 	id := c.Params("id")
 	if !validatePayloadID(id) {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_id", "Formato de ID invalido", nil)
 	}
 
-	experienceStoreLock.Lock()
-	defer experienceStoreLock.Unlock()
-
-	experiences, err := loadExperiences()
+	existing, err := s.repo.GetByID(context.Background(), id)
 	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return apiresponse.Error(c, fiber.StatusNotFound, "skill_not_found", "Capacidad no encontrada", nil)
+		}
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "load_skills_failed", "No se pudo cargar capacidades", err.Error())
 	}
 
-	filtered := make([]userModel.Experience, 0, len(experiences))
-	found := false
-
-	for _, item := range experiences {
-		if item.ID == id && isSkillExperience(item) {
-			found = true
-			continue
-		}
-		filtered = append(filtered, item)
-	}
-
-	if !found {
+	if !isSkillExperience(existing) {
 		return apiresponse.Error(c, fiber.StatusNotFound, "skill_not_found", "Capacidad no encontrada", nil)
 	}
-	if err := saveExperiences(filtered); err != nil {
+
+	if err := s.repo.Delete(context.Background(), id); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return apiresponse.Error(c, fiber.StatusNotFound, "skill_not_found", "Capacidad no encontrada", nil)
+		}
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "save_skill_failed", "No se pudo eliminar la capacidad", err.Error())
 	}
 

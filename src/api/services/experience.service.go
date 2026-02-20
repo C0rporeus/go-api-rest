@@ -1,14 +1,28 @@
 package services
 
 import (
-	userModel "backend-yonathan/src/models"
+	"context"
+	"errors"
+	"time"
+
+	models "backend-yonathan/src/models"
 	"backend-yonathan/src/pkg/apiresponse"
 	"backend-yonathan/src/pkg/constants"
-	"time"
+	"backend-yonathan/src/repository"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
+
+// ExperienceService handles experience CRUD business logic.
+type ExperienceService struct {
+	repo repository.ExperienceRepository
+}
+
+// NewExperienceService creates an ExperienceService backed by the given ExperienceRepository.
+func NewExperienceService(repo repository.ExperienceRepository) *ExperienceService {
+	return &ExperienceService{repo: repo}
+}
 
 // ListPublicExperiences godoc
 // @Summary      Listar experiencias publicas
@@ -19,29 +33,26 @@ import (
 // @Success      304  "Not Modified"
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/experiences [get]
-func ListPublicExperiences(c fiber.Ctx) error {
-	experienceStoreLock.RLock()
-	defer experienceStoreLock.RUnlock()
-
-	experiences, err := loadExperiences()
+func (s *ExperienceService) ListPublicExperiences(c fiber.Ctx) error {
+	all, err := s.repo.List(context.Background())
 	if err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "load_experiences_failed", "No se pudo cargar experiencias", err.Error())
 	}
 
-	publicExperiences := make([]userModel.Experience, 0, len(experiences))
-	for _, item := range experiences {
+	public := make([]models.Experience, 0, len(all))
+	for _, item := range all {
 		if item.Visibility == constants.VisibilityPublic {
-			publicExperiences = append(publicExperiences, item)
+			public = append(public, item)
 		}
 	}
 
-	etag := buildCollectionETag(publicExperiences)
+	etag := buildCollectionETag(public)
 	setPublicCollectionCacheHeaders(c, etag)
 	if matchesIfNoneMatchHeader(c.Get("If-None-Match"), etag) {
 		return c.SendStatus(fiber.StatusNotModified)
 	}
 
-	return apiresponse.Success(c, fiber.Map{"items": publicExperiences})
+	return apiresponse.Success(c, fiber.Map{"items": public})
 }
 
 // ListAllExperiences godoc
@@ -54,15 +65,12 @@ func ListPublicExperiences(c fiber.Ctx) error {
 // @Failure      401  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/private/experiences [get]
-func ListAllExperiences(c fiber.Ctx) error {
-	experienceStoreLock.RLock()
-	defer experienceStoreLock.RUnlock()
-
-	experiences, err := loadExperiences()
+func (s *ExperienceService) ListAllExperiences(c fiber.Ctx) error {
+	all, err := s.repo.List(context.Background())
 	if err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "load_experiences_failed", "No se pudo cargar experiencias", err.Error())
 	}
-	return apiresponse.Success(c, fiber.Map{"items": experiences})
+	return apiresponse.Success(c, fiber.Map{"items": all})
 }
 
 // CreateExperience godoc
@@ -77,7 +85,7 @@ func ListAllExperiences(c fiber.Ctx) error {
 // @Failure      400  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/private/experiences [post]
-func CreateExperience(c fiber.Ctx) error {
+func (s *ExperienceService) CreateExperience(c fiber.Ctx) error {
 	var payload experiencePayload
 	if err := c.Bind().Body(&payload); err != nil {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_payload", "Payload invalido", err.Error())
@@ -89,16 +97,8 @@ func CreateExperience(c fiber.Ctx) error {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "missing_title", "El titulo es requerido", nil)
 	}
 
-	experienceStoreLock.Lock()
-	defer experienceStoreLock.Unlock()
-
-	experiences, err := loadExperiences()
-	if err != nil {
-		return apiresponse.Error(c, fiber.StatusInternalServerError, "load_experiences_failed", "No se pudo cargar experiencias", err.Error())
-	}
-
 	now := time.Now().UTC().Format(time.RFC3339)
-	item := userModel.Experience{
+	item := models.Experience{
 		ID:         uuid.NewString(),
 		Title:      payload.Title,
 		Summary:    payload.Summary,
@@ -110,8 +110,7 @@ func CreateExperience(c fiber.Ctx) error {
 		UpdatedAt:  now,
 	}
 
-	experiences = append(experiences, item)
-	if err := saveExperiences(experiences); err != nil {
+	if err := s.repo.Create(context.Background(), item); err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "save_experience_failed", "No se pudo guardar la experiencia", err.Error())
 	}
 
@@ -132,7 +131,7 @@ func CreateExperience(c fiber.Ctx) error {
 // @Failure      404  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/private/experiences/{id} [put]
-func UpdateExperience(c fiber.Ctx) error {
+func (s *ExperienceService) UpdateExperience(c fiber.Ctx) error {
 	id := c.Params("id")
 	if !validatePayloadID(id) {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_id", "Formato de ID invalido", nil)
@@ -145,35 +144,32 @@ func UpdateExperience(c fiber.Ctx) error {
 
 	sanitizePayload(&payload)
 
-	experienceStoreLock.Lock()
-	defer experienceStoreLock.Unlock()
-
-	experiences, err := loadExperiences()
+	existing, err := s.repo.GetByID(context.Background(), id)
 	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return apiresponse.Error(c, fiber.StatusNotFound, "experience_not_found", "Experiencia no encontrada", nil)
+		}
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "load_experiences_failed", "No se pudo cargar experiencias", err.Error())
 	}
 
-	for i, item := range experiences {
-		if item.ID == id {
-			if payload.Title != "" {
-				item.Title = payload.Title
-			}
-			item.Summary = payload.Summary
-			item.Body = payload.Body
-			item.ImageURLs = payload.ImageURLs
-			item.Tags = payload.Tags
-			item.Visibility = payload.Visibility
-			item.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-			experiences[i] = item
+	if payload.Title != "" {
+		existing.Title = payload.Title
+	}
+	existing.Summary = payload.Summary
+	existing.Body = payload.Body
+	existing.ImageURLs = payload.ImageURLs
+	existing.Tags = payload.Tags
+	existing.Visibility = payload.Visibility
+	existing.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 
-			if err := saveExperiences(experiences); err != nil {
-				return apiresponse.Error(c, fiber.StatusInternalServerError, "save_experience_failed", "No se pudo actualizar la experiencia", err.Error())
-			}
-			return apiresponse.Success(c, item)
+	if err := s.repo.Update(context.Background(), existing); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return apiresponse.Error(c, fiber.StatusNotFound, "experience_not_found", "Experiencia no encontrada", nil)
 		}
+		return apiresponse.Error(c, fiber.StatusInternalServerError, "save_experience_failed", "No se pudo actualizar la experiencia", err.Error())
 	}
 
-	return apiresponse.Error(c, fiber.StatusNotFound, "experience_not_found", "Experiencia no encontrada", nil)
+	return apiresponse.Success(c, existing)
 }
 
 // DeleteExperience godoc
@@ -188,35 +184,18 @@ func UpdateExperience(c fiber.Ctx) error {
 // @Failure      404  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/private/experiences/{id} [delete]
-func DeleteExperience(c fiber.Ctx) error {
+func (s *ExperienceService) DeleteExperience(c fiber.Ctx) error {
 	id := c.Params("id")
 	if !validatePayloadID(id) {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_id", "Formato de ID invalido", nil)
 	}
 
-	experienceStoreLock.Lock()
-	defer experienceStoreLock.Unlock()
-
-	experiences, err := loadExperiences()
-	if err != nil {
-		return apiresponse.Error(c, fiber.StatusInternalServerError, "load_experiences_failed", "No se pudo cargar experiencias", err.Error())
-	}
-
-	filtered := make([]userModel.Experience, 0, len(experiences))
-	found := false
-	for _, item := range experiences {
-		if item.ID == id {
-			found = true
-			continue
+	if err := s.repo.Delete(context.Background(), id); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return apiresponse.Error(c, fiber.StatusNotFound, "experience_not_found", "Experiencia no encontrada", nil)
 		}
-		filtered = append(filtered, item)
-	}
-
-	if !found {
-		return apiresponse.Error(c, fiber.StatusNotFound, "experience_not_found", "Experiencia no encontrada", nil)
-	}
-	if err := saveExperiences(filtered); err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "save_experience_failed", "No se pudo eliminar la experiencia", err.Error())
 	}
+
 	return apiresponse.Success(c, fiber.Map{"deleted": true, "id": id})
 }

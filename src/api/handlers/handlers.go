@@ -3,21 +3,19 @@ package handlers
 import (
 	jwtMiddleware "backend-yonathan/src/api/middlewares"
 	"backend-yonathan/src/api/services"
-	"backend-yonathan/src/config"
 	"backend-yonathan/src/pkg/apiresponse"
 	"backend-yonathan/src/pkg/constants"
-	"log"
+	"backend-yonathan/src/repository"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/limiter"
 )
 
-func SetupRoutes(app *fiber.App) {
-	dbClient, err := config.ConfigAWS()
-	if err != nil {
-		log.Fatalf("Error al configurar AWS: %v", err)
-	}
+func SetupRoutes(app *fiber.App, userRepo repository.UserRepository, expRepo repository.ExperienceRepository) {
+	auth := services.NewAuthService(userRepo)
+	exp := services.NewExperienceService(expRepo)
+	skill := services.NewSkillService(expRepo)
 
 	rateLimitReached := func(c fiber.Ctx) error {
 		return apiresponse.Error(c, fiber.StatusTooManyRequests,
@@ -43,15 +41,11 @@ func SetupRoutes(app *fiber.App) {
 	// --- Public routes ---
 
 	public := app.Group("/api")
-	public.Post("/login", authLimiter, func(c fiber.Ctx) error {
-		return services.Login(c, dbClient)
-	})
-	public.Post("/register", authLimiter, func(c fiber.Ctx) error {
-		return services.Register(c, dbClient)
-	})
+	public.Post("/login", authLimiter, auth.Login)
+	public.Post("/register", authLimiter, auth.Register)
 	public.Post("/contact", authLimiter, services.SubmitContact)
-	public.Get("/experiences", services.ListPublicExperiences)
-	public.Get("/skills", services.ListPublicSkills)
+	public.Get("/experiences", exp.ListPublicExperiences)
+	public.Get("/skills", skill.ListPublicSkills)
 
 	// --- Tools (public, no auth) ---
 
@@ -71,15 +65,15 @@ func SetupRoutes(app *fiber.App) {
 	private.Get("/me", services.GetCurrentUser)
 	private.Post("/refresh", services.RefreshToken)
 
-	private.Get("/experiences", services.ListAllExperiences)
-	private.Post("/experiences", services.CreateExperience)
-	private.Put("/experiences/:id", services.UpdateExperience)
-	private.Delete("/experiences/:id", services.DeleteExperience)
+	private.Get("/experiences", exp.ListAllExperiences)
+	private.Post("/experiences", exp.CreateExperience)
+	private.Put("/experiences/:id", exp.UpdateExperience)
+	private.Delete("/experiences/:id", exp.DeleteExperience)
 
-	private.Get("/skills", services.ListAllSkills)
-	private.Post("/skills", services.CreateSkill)
-	private.Put("/skills/:id", services.UpdateSkill)
-	private.Delete("/skills/:id", services.DeleteSkill)
+	private.Get("/skills", skill.ListAllSkills)
+	private.Post("/skills", skill.CreateSkill)
+	private.Put("/skills/:id", skill.UpdateSkill)
+	private.Delete("/skills/:id", skill.DeleteSkill)
 
 	private.Get("/ops/metrics", services.GetOpsMetrics)
 	private.Get("/ops/alerts", services.GetOpsAlerts)

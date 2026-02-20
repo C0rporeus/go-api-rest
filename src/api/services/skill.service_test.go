@@ -6,20 +6,21 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 
 	"backend-yonathan/src/pkg/constants"
+	"backend-yonathan/src/repository/memory"
 
 	"github.com/gofiber/fiber/v3"
 )
 
 func TestCreateAndListPublicSkills(t *testing.T) {
-	t.Setenv("PORTFOLIO_DATA_DIR", filepath.Join(t.TempDir(), "data"))
+	repo := memory.NewExperienceRepository()
+	svc := NewSkillService(repo)
 
 	app := fiber.New()
-	app.Post("/private/skills", CreateSkill)
-	app.Get("/skills", ListPublicSkills)
+	app.Post("/private/skills", svc.CreateSkill)
+	app.Get("/skills", svc.ListPublicSkills)
 
 	body, _ := json.Marshal(map[string]any{
 		"title":      "Go Avanzado",
@@ -60,9 +61,11 @@ func TestCreateAndListPublicSkills(t *testing.T) {
 }
 
 func TestCreateSkillRejectsMissingTitle(t *testing.T) {
-	t.Setenv("PORTFOLIO_DATA_DIR", filepath.Join(t.TempDir(), "data"))
+	repo := memory.NewExperienceRepository()
+	svc := NewSkillService(repo)
+
 	app := fiber.New()
-	app.Post("/private/skills", CreateSkill)
+	app.Post("/private/skills", svc.CreateSkill)
 
 	body, _ := json.Marshal(map[string]any{
 		"summary": "Sin titulo",
@@ -80,9 +83,11 @@ func TestCreateSkillRejectsMissingTitle(t *testing.T) {
 }
 
 func TestCreateSkillEnsuresSkillTag(t *testing.T) {
-	t.Setenv("PORTFOLIO_DATA_DIR", filepath.Join(t.TempDir(), "data"))
+	repo := memory.NewExperienceRepository()
+	svc := NewSkillService(repo)
+
 	app := fiber.New()
-	app.Post("/private/skills", CreateSkill)
+	app.Post("/private/skills", svc.CreateSkill)
 
 	body, _ := json.Marshal(map[string]any{
 		"title":      "TypeScript",
@@ -118,12 +123,14 @@ func TestCreateSkillEnsuresSkillTag(t *testing.T) {
 }
 
 func TestUpdateDeleteAndListAllSkills(t *testing.T) {
-	t.Setenv("PORTFOLIO_DATA_DIR", filepath.Join(t.TempDir(), "data"))
+	repo := memory.NewExperienceRepository()
+	svc := NewSkillService(repo)
+
 	app := fiber.New()
-	app.Post("/private/skills", CreateSkill)
-	app.Put("/private/skills/:id", UpdateSkill)
-	app.Delete("/private/skills/:id", DeleteSkill)
-	app.Get("/private/skills", ListAllSkills)
+	app.Post("/private/skills", svc.CreateSkill)
+	app.Put("/private/skills/:id", svc.UpdateSkill)
+	app.Delete("/private/skills/:id", svc.DeleteSkill)
+	app.Get("/private/skills", svc.ListAllSkills)
 
 	createBody, _ := json.Marshal(map[string]any{
 		"title":      "Docker",
@@ -149,7 +156,6 @@ func TestUpdateDeleteAndListAllSkills(t *testing.T) {
 		t.Fatalf("expected id in create response")
 	}
 
-	// Update skill
 	updateBody, _ := json.Marshal(map[string]any{
 		"title":      "Docker Avanzado",
 		"summary":    "Contenedores y orquestacion",
@@ -164,7 +170,6 @@ func TestUpdateDeleteAndListAllSkills(t *testing.T) {
 		t.Fatalf("update failed: %v status=%d", err, updateRes.StatusCode)
 	}
 
-	// List all (should include private)
 	listReq := httptest.NewRequest(http.MethodGet, "/private/skills", nil)
 	listRes, err := app.Test(listReq)
 	if err != nil || listRes.StatusCode != fiber.StatusOK {
@@ -181,14 +186,12 @@ func TestUpdateDeleteAndListAllSkills(t *testing.T) {
 		t.Fatalf("expected 1 skill in list all, got %v", listResult["items"])
 	}
 
-	// Delete skill
 	deleteReq := httptest.NewRequest(http.MethodDelete, "/private/skills/"+id, nil)
 	deleteRes, err := app.Test(deleteReq)
 	if err != nil || deleteRes.StatusCode != fiber.StatusOK {
 		t.Fatalf("delete failed: %v status=%d", err, deleteRes.StatusCode)
 	}
 
-	// Verify empty after delete
 	listReq2 := httptest.NewRequest(http.MethodGet, "/private/skills", nil)
 	listRes2, err := app.Test(listReq2)
 	if err != nil || listRes2.StatusCode != fiber.StatusOK {
@@ -207,9 +210,11 @@ func TestUpdateDeleteAndListAllSkills(t *testing.T) {
 }
 
 func TestUpdateSkillNotFound(t *testing.T) {
-	t.Setenv("PORTFOLIO_DATA_DIR", filepath.Join(t.TempDir(), "data"))
+	repo := memory.NewExperienceRepository()
+	svc := NewSkillService(repo)
+
 	app := fiber.New()
-	app.Put("/private/skills/:id", UpdateSkill)
+	app.Put("/private/skills/:id", svc.UpdateSkill)
 
 	body, _ := json.Marshal(map[string]any{"title": "X"})
 	req := httptest.NewRequest(http.MethodPut, "/private/skills/00000000-0000-0000-0000-000000000099", bytes.NewReader(body))
@@ -224,9 +229,11 @@ func TestUpdateSkillNotFound(t *testing.T) {
 }
 
 func TestDeleteSkillNotFound(t *testing.T) {
-	t.Setenv("PORTFOLIO_DATA_DIR", filepath.Join(t.TempDir(), "data"))
+	repo := memory.NewExperienceRepository()
+	svc := NewSkillService(repo)
+
 	app := fiber.New()
-	app.Delete("/private/skills/:id", DeleteSkill)
+	app.Delete("/private/skills/:id", svc.DeleteSkill)
 
 	req := httptest.NewRequest(http.MethodDelete, "/private/skills/00000000-0000-0000-0000-000000000099", nil)
 	res, err := app.Test(req)
@@ -239,12 +246,13 @@ func TestDeleteSkillNotFound(t *testing.T) {
 }
 
 func TestListPublicSkillsFiltersPrivate(t *testing.T) {
-	t.Setenv("PORTFOLIO_DATA_DIR", filepath.Join(t.TempDir(), "data"))
-	app := fiber.New()
-	app.Post("/private/skills", CreateSkill)
-	app.Get("/skills", ListPublicSkills)
+	repo := memory.NewExperienceRepository()
+	svc := NewSkillService(repo)
 
-	// Create a private skill
+	app := fiber.New()
+	app.Post("/private/skills", svc.CreateSkill)
+	app.Get("/skills", svc.ListPublicSkills)
+
 	body, _ := json.Marshal(map[string]any{
 		"title":      "Skill Privado",
 		"tags":       []string{"skill"},
@@ -257,7 +265,6 @@ func TestListPublicSkillsFiltersPrivate(t *testing.T) {
 		t.Fatalf("create failed: err=%v status=%d", err, res.StatusCode)
 	}
 
-	// List public — should be empty
 	listReq := httptest.NewRequest(http.MethodGet, "/skills", nil)
 	listRes, err := app.Test(listReq)
 	if err != nil || listRes.StatusCode != fiber.StatusOK {
@@ -272,5 +279,83 @@ func TestListPublicSkillsFiltersPrivate(t *testing.T) {
 	items, ok := result["items"].([]any)
 	if !ok || len(items) != 0 {
 		t.Fatalf("expected 0 public skills (private only created), got %d", len(items))
+	}
+}
+
+func TestUpdateSkillNotASkill(t *testing.T) {
+	repo := memory.NewExperienceRepository()
+	expSvc := NewExperienceService(repo)
+	svc := NewSkillService(repo)
+
+	app := fiber.New()
+	app.Post("/private/experiences", expSvc.CreateExperience)
+	app.Put("/private/skills/:id", svc.UpdateSkill)
+
+	// Create a regular experience (not a skill)
+	createBody, _ := json.Marshal(map[string]any{
+		"title":      "Regular Experience",
+		"tags":       []string{"api"},
+		"visibility": constants.VisibilityPublic,
+	})
+	createReq := httptest.NewRequest(http.MethodPost, "/private/experiences", bytes.NewReader(createBody))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRes, err := app.Test(createReq)
+	if err != nil || createRes.StatusCode != fiber.StatusOK {
+		t.Fatalf("create experience failed: err=%v status=%d", err, createRes.StatusCode)
+	}
+
+	raw, _ := io.ReadAll(createRes.Body)
+	var created map[string]any
+	json.Unmarshal(raw, &created)
+	id, _ := created["id"].(string)
+
+	// Try to update it as a skill — should 404
+	updateBody, _ := json.Marshal(map[string]any{"title": "Updated"})
+	req := httptest.NewRequest(http.MethodPut, "/private/skills/"+id, bytes.NewReader(updateBody))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusNotFound {
+		t.Fatalf("expected 404 for non-skill update, got %d", res.StatusCode)
+	}
+}
+
+func TestDeleteSkillNotASkill(t *testing.T) {
+	repo := memory.NewExperienceRepository()
+	expSvc := NewExperienceService(repo)
+	svc := NewSkillService(repo)
+
+	app := fiber.New()
+	app.Post("/private/experiences", expSvc.CreateExperience)
+	app.Delete("/private/skills/:id", svc.DeleteSkill)
+
+	// Create a regular experience (not a skill)
+	createBody, _ := json.Marshal(map[string]any{
+		"title":      "Regular Experience",
+		"tags":       []string{"api"},
+		"visibility": constants.VisibilityPublic,
+	})
+	createReq := httptest.NewRequest(http.MethodPost, "/private/experiences", bytes.NewReader(createBody))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRes, err := app.Test(createReq)
+	if err != nil || createRes.StatusCode != fiber.StatusOK {
+		t.Fatalf("create experience failed: err=%v status=%d", err, createRes.StatusCode)
+	}
+
+	raw, _ := io.ReadAll(createRes.Body)
+	var created map[string]any
+	json.Unmarshal(raw, &created)
+	id, _ := created["id"].(string)
+
+	// Try to delete it as a skill — should 404
+	req := httptest.NewRequest(http.MethodDelete, "/private/skills/"+id, nil)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusNotFound {
+		t.Fatalf("expected 404 for non-skill delete, got %d", res.StatusCode)
 	}
 }
