@@ -1,26 +1,42 @@
 package services
 
 import (
-	"errors"
-	userModel "backend-yonathan/src/models"
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	models "backend-yonathan/src/models"
+	"backend-yonathan/src/repository"
+	"backend-yonathan/src/repository/memory"
+
 	"github.com/gofiber/fiber/v3"
 	"golang.org/x/crypto/bcrypt"
 )
 
+// errSaveUserRepo wraps a UserRepository and always fails on SaveUser.
+type errSaveUserRepo struct {
+	delegate repository.UserRepository
+}
+
+func (e errSaveUserRepo) SaveUser(_ context.Context, _ models.User) error {
+	return errors.New("save failed")
+}
+func (e errSaveUserRepo) GetUserByID(ctx context.Context, id string) (models.User, error) {
+	return e.delegate.GetUserByID(ctx, id)
+}
+func (e errSaveUserRepo) GetUserByEmail(ctx context.Context, email string) (models.User, error) {
+	return e.delegate.GetUserByEmail(ctx, email)
+}
+
 func TestLoginRejectsInvalidPayload(t *testing.T) {
+	svc := NewAuthService(memory.NewUserRepository())
 	app := fiber.New()
-	app.Post("/login", func(c fiber.Ctx) error {
-		return Login(c, nil)
-	})
+	app.Post("/login", svc.Login)
 
 	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader("{invalid-json"))
 	req.Header.Set("Content-Type", "application/json")
@@ -33,11 +49,27 @@ func TestLoginRejectsInvalidPayload(t *testing.T) {
 	}
 }
 
-func TestRegisterRejectsInvalidPayload(t *testing.T) {
+func TestRegisterDisabledByDefault(t *testing.T) {
+	svc := NewAuthService(memory.NewUserRepository())
 	app := fiber.New()
-	app.Post("/register", func(c fiber.Ctx) error {
-		return Register(c, nil)
-	})
+	app.Post("/register", svc.Register)
+
+	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(`{"email":"ok@test.com","password":"Test1234","username":"tester"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusForbidden {
+		t.Fatalf("expected 403 when registration disabled, got %d", res.StatusCode)
+	}
+}
+
+func TestRegisterRejectsInvalidPayload(t *testing.T) {
+	t.Setenv("REGISTRATION_ENABLED", "true")
+	svc := NewAuthService(memory.NewUserRepository())
+	app := fiber.New()
+	app.Post("/register", svc.Register)
 
 	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader("{invalid-json"))
 	req.Header.Set("Content-Type", "application/json")
@@ -50,155 +82,16 @@ func TestRegisterRejectsInvalidPayload(t *testing.T) {
 	}
 }
 
-func withMockDBCalls(
-	t *testing.T,
-	queryMock func(*dynamodb.Client, *dynamodb.QueryInput) (*dynamodb.QueryOutput, error),
-	putMock func(*dynamodb.Client, *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error),
-	getMock func(*dynamodb.Client, *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error),
-) {
-	t.Helper()
-	originalQuery := queryFunc
-	originalPut := putItemFunc
-	originalGet := getItemFunc
-
-	if queryMock != nil {
-		queryFunc = queryMock
-	}
-	if putMock != nil {
-		putItemFunc = putMock
-	}
-	if getMock != nil {
-		getItemFunc = getMock
-	}
-
-	t.Cleanup(func() {
-		queryFunc = originalQuery
-		putItemFunc = originalPut
-		getItemFunc = originalGet
-	})
-}
-
-func TestGetUserByEmailAndByID(t *testing.T) {
-	withMockDBCalls(
-		t,
-		func(_ *dynamodb.Client, _ *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
-			return &dynamodb.QueryOutput{
-				Items: []map[string]types.AttributeValue{
-					{
-						"UserId":   &types.AttributeValueMemberS{Value: "u-1"},
-						"email":    &types.AttributeValueMemberS{Value: "mail@test.com"},
-						"password": &types.AttributeValueMemberS{Value: "hash"},
-						"username": &types.AttributeValueMemberS{Value: "tester"},
-					},
-				},
-			}, nil
-		},
-		nil,
-		func(_ *dynamodb.Client, _ *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
-			return &dynamodb.GetItemOutput{
-				Item: map[string]types.AttributeValue{
-					"UserId":   &types.AttributeValueMemberS{Value: "u-1"},
-					"email":    &types.AttributeValueMemberS{Value: "mail@test.com"},
-					"password": &types.AttributeValueMemberS{Value: "hash"},
-					"username": &types.AttributeValueMemberS{Value: "tester"},
-				},
-			}, nil
-		},
-	)
-
-	userByEmail, err := GetUserByEmail(nil, "mail@test.com")
-	if err != nil || userByEmail.Email != "mail@test.com" {
-		t.Fatalf("expected user by email, err=%v user=%+v", err, userByEmail)
-	}
-
-	userByID, err := GetUserById(nil, "u-1")
-	if err != nil || userByID.UserId != "u-1" {
-		t.Fatalf("expected user by id, err=%v user=%+v", err, userByID)
-	}
-}
-
-func TestGetUserByIdNotFoundAndError(t *testing.T) {
-	withMockDBCalls(
-		t,
-		nil,
-		nil,
-		func(_ *dynamodb.Client, _ *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
-			return &dynamodb.GetItemOutput{Item: nil}, nil
-		},
-	)
-	if _, err := GetUserById(nil, "missing"); err == nil {
-		t.Fatalf("expected not found error")
-	}
-
-	withMockDBCalls(
-		t,
-		nil,
-		nil,
-		func(_ *dynamodb.Client, _ *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
-			return nil, errors.New("get failed")
-		},
-	)
-	if _, err := GetUserById(nil, "id"); err == nil {
-		t.Fatalf("expected get error")
-	}
-}
-
-func TestSaveUser(t *testing.T) {
-	withMockDBCalls(
-		t,
-		nil,
-		func(_ *dynamodb.Client, _ *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error) {
-			return &dynamodb.PutItemOutput{}, nil
-		},
-		nil,
-	)
-
-	err := SaveUser(nil, userModel.User{
-		Email:    "mail@test.com",
-		Password: "pass",
-		UserName: "tester",
-	})
-	if err != nil {
-		t.Fatalf("expected save user success: %v", err)
-	}
-}
-
 func TestRegisterAndLoginSuccess(t *testing.T) {
 	t.Setenv("JWT_SECRET", "unit-test-secret")
-	existingUserQueryCalls := 0
+	t.Setenv("REGISTRATION_ENABLED", "true")
 
-	hashed, err := bcrypt.GenerateFromPassword([]byte("Test1234"), bcrypt.DefaultCost)
-	if err != nil {
-		t.Fatalf("hash failed: %v", err)
-	}
-
-	withMockDBCalls(
-		t,
-		func(_ *dynamodb.Client, _ *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
-			existingUserQueryCalls++
-			if existingUserQueryCalls == 1 {
-				return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}}, nil
-			}
-			return &dynamodb.QueryOutput{
-				Items: []map[string]types.AttributeValue{
-					{
-						"UserId":   &types.AttributeValueMemberS{Value: "u-login"},
-						"email":    &types.AttributeValueMemberS{Value: "mail@test.com"},
-						"password": &types.AttributeValueMemberS{Value: string(hashed)},
-						"username": &types.AttributeValueMemberS{Value: "tester"},
-					},
-				},
-			}, nil
-		},
-		func(_ *dynamodb.Client, _ *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error) {
-			return &dynamodb.PutItemOutput{}, nil
-		},
-		nil,
-	)
+	repo := memory.NewUserRepository()
+	svc := NewAuthService(repo)
 
 	app := fiber.New()
-	app.Post("/register", func(c fiber.Ctx) error { return Register(c, nil) })
-	app.Post("/login", func(c fiber.Ctx) error { return Login(c, nil) })
+	app.Post("/register", svc.Register)
+	app.Post("/login", svc.Login)
 
 	registerReq := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(`{"email":"mail@test.com","password":"Test1234","username":"tester"}`))
 	registerReq.Header.Set("Content-Type", "application/json")
@@ -224,43 +117,148 @@ func TestRegisterAndLoginSuccess(t *testing.T) {
 	}
 }
 
-func TestRegisterAndLoginErrorPaths(t *testing.T) {
-	t.Setenv("JWT_SECRET", "unit-test-secret")
-	withMockDBCalls(
-		t,
-		func(_ *dynamodb.Client, _ *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
-			return nil, errors.New("db query failed")
-		},
-		func(_ *dynamodb.Client, _ *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error) {
-			return nil, errors.New("db put failed")
-		},
-		func(_ *dynamodb.Client, _ *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
-			return nil, errors.New("db get failed")
-		},
-	)
-
+func TestLoginUserNotFound(t *testing.T) {
+	svc := NewAuthService(memory.NewUserRepository())
 	app := fiber.New()
-	app.Post("/login", func(c fiber.Ctx) error { return Login(c, nil) })
-	app.Post("/register", func(c fiber.Ctx) error { return Register(c, nil) })
+	app.Post("/login", svc.Login)
 
-	loginReq := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(`{"email":"mail@test.com","password":"Test1234"}`))
-	loginReq.Header.Set("Content-Type", "application/json")
-	loginRes, err := app.Test(loginReq)
+	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(`{"email":"nobody@test.com","password":"Test1234"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(req)
 	if err != nil {
-		t.Fatalf("login call failed: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if loginRes.StatusCode != fiber.StatusUnauthorized {
-		t.Fatalf("expected unauthorized status, got %d", loginRes.StatusCode)
+	if res.StatusCode != fiber.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", res.StatusCode)
+	}
+}
+
+func TestLoginWrongPassword(t *testing.T) {
+	t.Setenv("JWT_SECRET", "unit-test-secret")
+
+	repo := memory.NewUserRepository()
+	hashed, _ := bcrypt.GenerateFromPassword([]byte("RealPass1"), bcrypt.DefaultCost)
+	_ = repo.SaveUser(context.Background(), models.User{
+		UserId:   "u-1",
+		Email:    "user@test.com",
+		Password: string(hashed),
+		UserName: "tester",
+	})
+
+	svc := NewAuthService(repo)
+	app := fiber.New()
+	app.Post("/login", svc.Login)
+
+	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(`{"email":"user@test.com","password":"WrongPass1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", res.StatusCode)
+	}
+}
+
+func TestRegisterUserAlreadyExists(t *testing.T) {
+	t.Setenv("JWT_SECRET", "unit-test-secret")
+	t.Setenv("REGISTRATION_ENABLED", "true")
+
+	repo := memory.NewUserRepository()
+	svc := NewAuthService(repo)
+	app := fiber.New()
+	app.Post("/register", svc.Register)
+
+	body := `{"email":"dup@test.com","password":"Test1234","username":"tester"}`
+
+	// First registration
+	req1 := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(body))
+	req1.Header.Set("Content-Type", "application/json")
+	res1, err := app.Test(req1)
+	if err != nil || res1.StatusCode != fiber.StatusOK {
+		t.Fatalf("first register failed: err=%v status=%d", err, res1.StatusCode)
 	}
 
-	registerReq := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(`{"email":"mail@test.com","password":"Test1234","username":"tester"}`))
-	registerReq.Header.Set("Content-Type", "application/json")
-	registerRes, err := app.Test(registerReq)
+	// Duplicate registration
+	req2 := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(body))
+	req2.Header.Set("Content-Type", "application/json")
+	res2, err := app.Test(req2)
 	if err != nil {
-		t.Fatalf("register call failed: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if registerRes.StatusCode != fiber.StatusInternalServerError {
-		t.Fatalf("expected internal server error status, got %d", registerRes.StatusCode)
+	if res2.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("expected 400 on duplicate register, got %d", res2.StatusCode)
+	}
+}
+
+func TestRegisterSaveUserFails(t *testing.T) {
+	t.Setenv("JWT_SECRET", "unit-test-secret")
+	t.Setenv("REGISTRATION_ENABLED", "true")
+
+	// Use a repo where GetUserByEmail always returns not-found but SaveUser fails.
+	svc := NewAuthService(errSaveUserRepo{delegate: memory.NewUserRepository()})
+	app := fiber.New()
+	app.Post("/register", svc.Register)
+
+	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(`{"email":"fail@test.com","password":"Test1234","username":"tester"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", res.StatusCode)
+	}
+}
+
+func TestRegisterInvalidEmail(t *testing.T) {
+	t.Setenv("REGISTRATION_ENABLED", "true")
+	svc := NewAuthService(memory.NewUserRepository())
+	app := fiber.New()
+	app.Post("/register", svc.Register)
+
+	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(`{"email":"not-an-email","password":"Test1234","username":"tester"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", res.StatusCode)
+	}
+}
+
+func TestRegisterWeakPassword(t *testing.T) {
+	t.Setenv("REGISTRATION_ENABLED", "true")
+	svc := NewAuthService(memory.NewUserRepository())
+	app := fiber.New()
+	app.Post("/register", svc.Register)
+
+	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(`{"email":"ok@test.com","password":"weak","username":"tester"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", res.StatusCode)
+	}
+}
+
+func TestRegisterEmptyUsername(t *testing.T) {
+	t.Setenv("REGISTRATION_ENABLED", "true")
+	svc := NewAuthService(memory.NewUserRepository())
+	app := fiber.New()
+	app.Post("/register", svc.Register)
+
+	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(`{"email":"ok@test.com","password":"Test1234","username":""}`))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", res.StatusCode)
 	}
 }
 

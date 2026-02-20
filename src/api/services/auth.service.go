@@ -1,35 +1,29 @@
 package services
 
 import (
-	userModel "backend-yonathan/src/models"
+	"context"
+	"strings"
+
+	models "backend-yonathan/src/models"
 	"backend-yonathan/src/pkg/apiresponse"
 	"backend-yonathan/src/pkg/constants"
 	"backend-yonathan/src/pkg/sanitizer"
 	jwtManager "backend-yonathan/src/pkg/utils"
-	"context"
-	"fmt"
-	"strings"
+	"backend-yonathan/src/repository"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
-var (
-	putItemFunc = func(dbClient *dynamodb.Client, input *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error) {
-		return dbClient.PutItem(context.Background(), input)
-	}
-	getItemFunc = func(dbClient *dynamodb.Client, input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
-		return dbClient.GetItem(context.Background(), input)
-	}
-	queryFunc = func(dbClient *dynamodb.Client, input *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
-		return dbClient.Query(context.Background(), input)
-	}
-)
+// AuthService handles authentication business logic.
+type AuthService struct {
+	users repository.UserRepository
+}
+
+// NewAuthService creates an AuthService backed by the given UserRepository.
+func NewAuthService(repo repository.UserRepository) *AuthService {
+	return &AuthService{users: repo}
+}
 
 func respondWithToken(c fiber.Ctx, userID, username string) error {
 	token, err := jwtManager.GenerateToken(userID, username)
@@ -37,88 +31,6 @@ func respondWithToken(c fiber.Ctx, userID, username string) error {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "token_generation_failed", "No se pudo generar el token", err.Error())
 	}
 	return apiresponse.Success(c, fiber.Map{"token": token})
-}
-
-func SaveUser(dbClient *dynamodb.Client, user userModel.User) error {
-	if user.UserId == "" {
-		user.UserId = uuid.New().String()
-	}
-	tableName := constants.TableName()
-	input := &dynamodb.PutItemInput{
-		Item: map[string]types.AttributeValue{
-			"UserId":   &types.AttributeValueMemberS{Value: user.UserId},
-			"email":    &types.AttributeValueMemberS{Value: user.Email},
-			"password": &types.AttributeValueMemberS{Value: user.Password},
-			"username": &types.AttributeValueMemberS{Value: user.UserName},
-		},
-		TableName: aws.String(tableName),
-	}
-	_, err := putItemFunc(dbClient, input)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// GetUserById looks up a user by the "UserId" partition key.
-func GetUserById(dbClient *dynamodb.Client, id string) (userModel.User, error) {
-	var user userModel.User
-	tableName := constants.TableName()
-
-	input := &dynamodb.GetItemInput{
-		TableName: aws.String(tableName),
-		Key: map[string]types.AttributeValue{
-			"UserId": &types.AttributeValueMemberS{Value: id},
-		},
-	}
-
-	result, err := getItemFunc(dbClient, input)
-	if err != nil {
-		return user, err
-	}
-
-	if result.Item == nil {
-		return user, fmt.Errorf("user not found")
-	}
-
-	err = attributevalue.UnmarshalMap(result.Item, &user)
-	if err != nil {
-		return user, err
-	}
-
-	return user, nil
-}
-
-func GetUserByEmail(dbClient *dynamodb.Client, email string) (userModel.User, error) {
-	var user userModel.User
-	tableName := constants.TableName()
-	input := &dynamodb.QueryInput{
-		TableName: aws.String(tableName),
-		IndexName: aws.String(constants.DynamoDBEmailIndex),
-		KeyConditions: map[string]types.Condition{
-			"email": {
-				ComparisonOperator: types.ComparisonOperatorEq,
-				AttributeValueList: []types.AttributeValue{
-					&types.AttributeValueMemberS{Value: email},
-				},
-			},
-		},
-	}
-	result, err := queryFunc(dbClient, input)
-
-	if err != nil {
-		return user, err
-	}
-
-	if len(result.Items) == 0 {
-		return user, fmt.Errorf("user not found")
-	}
-
-	err = attributevalue.UnmarshalMap(result.Items[0], &user)
-	if err != nil {
-		return user, err
-	}
-	return user, nil
 }
 
 // Register godoc
@@ -132,8 +44,12 @@ func GetUserByEmail(dbClient *dynamodb.Client, email string) (userModel.User, er
 // @Failure      400  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/register [post]
-func Register(c fiber.Ctx, dbClient *dynamodb.Client) error {
-	var user userModel.User
+func (s *AuthService) Register(c fiber.Ctx) error {
+	if !constants.RegistrationEnabled() {
+		return apiresponse.Error(c, fiber.StatusForbidden, "registration_disabled", "El registro de usuarios esta deshabilitado", nil)
+	}
+
+	var user models.User
 	if err := c.Bind().Body(&user); err != nil {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_payload", "Payload invalido", err.Error())
 	}
@@ -152,7 +68,7 @@ func Register(c fiber.Ctx, dbClient *dynamodb.Client) error {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_username", "El nombre de usuario es requerido", nil)
 	}
 
-	_, err := GetUserByEmail(dbClient, user.Email)
+	_, err := s.users.GetUserByEmail(context.Background(), user.Email)
 	if err == nil {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "user_already_exists", "El usuario ya existe", nil)
 	}
@@ -162,8 +78,7 @@ func Register(c fiber.Ctx, dbClient *dynamodb.Client) error {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "password_hash_failed", "No se pudo procesar la contrasena", err.Error())
 	}
 	user.Password = string(hashedPassword)
-	err = SaveUser(dbClient, user)
-	if err != nil {
+	if err := s.users.SaveUser(context.Background(), user); err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "save_user_failed", "No se pudo registrar el usuario", err.Error())
 	}
 	return respondWithToken(c, user.UserId, user.UserName)
@@ -180,7 +95,7 @@ func Register(c fiber.Ctx, dbClient *dynamodb.Client) error {
 // @Failure      400  {object}  map[string]interface{}
 // @Failure      401  {object}  map[string]interface{}
 // @Router       /api/login [post]
-func Login(c fiber.Ctx, dbClient *dynamodb.Client) error {
+func (s *AuthService) Login(c fiber.Ctx) error {
 	var loginRequest struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -198,13 +113,12 @@ func Login(c fiber.Ctx, dbClient *dynamodb.Client) error {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_password", "Contrasena invalida", nil)
 	}
 
-	user, err := GetUserByEmail(dbClient, loginRequest.Email)
+	user, err := s.users.GetUserByEmail(context.Background(), loginRequest.Email)
 	if err != nil {
 		return apiresponse.Error(c, fiber.StatusUnauthorized, "invalid_credentials", "Unauthorized", nil)
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginRequest.Password))
-	if err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginRequest.Password)); err != nil {
 		return apiresponse.Error(c, fiber.StatusUnauthorized, "invalid_credentials", "Unauthorized", nil)
 	}
 
@@ -247,3 +161,4 @@ func RefreshToken(c fiber.Ctx) error {
 
 	return respondWithToken(c, userId, username)
 }
+

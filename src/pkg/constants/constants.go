@@ -3,6 +3,7 @@ package constants
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -63,6 +64,7 @@ const APIContactPath = "/api/contact"
 const (
 	DefaultDataDir      = "data"
 	ExperiencesFilename = "experiences.json"
+	UsersFilename       = "users.json"
 	DataDirEnvVar       = "PORTFOLIO_DATA_DIR"
 )
 
@@ -101,6 +103,19 @@ const (
 	BodyLimitDefault = 1 * 1024 * 1024
 	BodyLimitCerts   = 512 * 1024
 )
+
+// Firestore defaults.
+const (
+	FirestoreUsersCollection       = "users"
+	FirestoreExperiencesCollection = "experiences"
+)
+
+// RegistrationEnabled returns whether public user registration is allowed.
+// Defaults to false (disabled) in production for security.
+func RegistrationEnabled() bool {
+	val := strings.ToLower(os.Getenv("REGISTRATION_ENABLED"))
+	return val == "true" || val == "1"
+}
 
 // DefaultJWTExpiryHours is the fallback JWT token expiry in hours.
 const DefaultJWTExpiryHours = 24

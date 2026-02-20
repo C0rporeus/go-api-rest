@@ -2,9 +2,15 @@ package main
 
 import (
 	"backend-yonathan/src/api/handlers"
+	"backend-yonathan/src/api/services"
+	"backend-yonathan/src/config"
 	"backend-yonathan/src/pkg/apiresponse"
 	"backend-yonathan/src/pkg/constants"
 	"backend-yonathan/src/pkg/telemetry"
+	"backend-yonathan/src/repository"
+	dynamoRepo "backend-yonathan/src/repository/dynamodb"
+	firestoreRepo "backend-yonathan/src/repository/firestore"
+	jsonRepo "backend-yonathan/src/repository/json"
 	"encoding/json"
 	"errors"
 	"log"
@@ -14,12 +20,12 @@ import (
 
 	_ "backend-yonathan/docs"
 
+	swaggo "github.com/gofiber/contrib/v3/swaggo"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/helmet"
 	"github.com/gofiber/fiber/v3/middleware/limiter"
 	"github.com/google/uuid"
-	swaggo "github.com/gofiber/contrib/v3/swaggo"
 	"github.com/joho/godotenv"
 )
 
@@ -34,8 +40,29 @@ import (
 // @description                 JWT token con formato "Bearer {token}"
 
 func init() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("Error loading .env file")
+	// En producción (Cloud Run) no hay .env; las vars ya están inyectadas por la plataforma.
+	_ = godotenv.Load()
+}
+
+func buildRepositories() (repository.UserRepository, repository.ExperienceRepository) {
+	switch strings.ToLower(os.Getenv("DB_PROVIDER")) {
+	case "dynamodb":
+		client, err := config.ConfigAWS()
+		if err != nil {
+			log.Fatalf("AWS config error: %v", err)
+		}
+		return dynamoRepo.NewUserRepository(client), jsonRepo.NewExperienceRepository()
+	case "firestore":
+		client, err := config.ConfigFirestore()
+		if err != nil {
+			log.Fatalf("Firestore config error: %v", err)
+		}
+		return firestoreRepo.NewUserRepository(client), firestoreRepo.NewExperienceRepository(client)
+	case "json":
+		return jsonRepo.NewUserRepository(), jsonRepo.NewExperienceRepository()
+	default:
+		log.Fatalf("DB_PROVIDER no configurado o no reconocido. Valores validos: dynamodb, firestore, json")
+		return nil, nil
 	}
 }
 
@@ -114,7 +141,9 @@ func main() {
 		return err
 	})
 
-	handlers.SetupRoutes(app)
+	userRepo, expRepo := buildRepositories()
+	services.SeedAdminUser(userRepo)
+	handlers.SetupRoutes(app, userRepo, expRepo)
 	app.Get("/swagger/*", swaggo.HandlerDefault)
 
 	port := os.Getenv("PORT")
