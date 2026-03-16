@@ -76,6 +76,7 @@ const (
 	MaxTagLength       = 50
 	MaxTagCount        = 20
 	MaxImageURLCount   = 10
+	MaxImageURLLength  = 2048 // GCS signed URLs can be long; keep below browser/server limits
 	MaxBase64InputSize = 1_000_000
 	MaxCertCommonName  = 100
 	MaxCertOrgLength   = 100
@@ -90,7 +91,7 @@ const (
 
 // Rate limiting defaults.
 const (
-	RateLimitAuthMax      = 10
+	RateLimitAuthMax      = 5
 	RateLimitAuthWindow   = 60
 	RateLimitToolsMax     = 30
 	RateLimitToolsWindow  = 60
@@ -103,6 +104,37 @@ const (
 	BodyLimitDefault = 1 * 1024 * 1024
 	BodyLimitCerts   = 512 * 1024
 )
+
+// Image upload (GCP Storage) limits.
+const (
+	MaxImageUploadBytes = 5 * 1024 * 1024 // 5 MB
+	StorageImagePrefix  = "portfolio-images"
+)
+
+// Allowed image MIME types for upload.
+var AllowedImageContentTypes = []string{"image/jpeg", "image/png", "image/gif", "image/webp"}
+
+// Default signed URL expiry for reading images.
+const DefaultSignedURLExpiryHours = 168 // 7 days
+
+// SignedURLExpiry returns the duration for signed image URLs.
+func SignedURLExpiry() time.Duration {
+	if val := os.Getenv("SIGNED_URL_EXPIRY_HOURS"); val != "" {
+		if hours, err := strconv.Atoi(val); err == nil && hours > 0 {
+			return time.Duration(hours) * time.Hour
+		}
+	}
+	return DefaultSignedURLExpiryHours * time.Hour
+}
+
+// GCSURLPrefix returns the canonical prefix for our bucket URLs.
+func GCSURLPrefix() string {
+	bucket := GCSBucketName()
+	if bucket == "" {
+		return ""
+	}
+	return "https://storage.googleapis.com/" + bucket + "/"
+}
 
 // Firestore defaults.
 const (
@@ -136,4 +168,10 @@ func TableName() string {
 		return name
 	}
 	return DefaultDynamoDBTable
+}
+
+// GCSBucketName returns the GCP Storage bucket name for image uploads from env.
+// If empty, the upload endpoint will return 503 (service not configured).
+func GCSBucketName() string {
+	return os.Getenv("GCS_BUCKET_NAME")
 }

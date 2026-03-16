@@ -41,8 +41,10 @@ func SetupRoutes(app *fiber.App, userRepo repository.UserRepository, expRepo rep
 	// --- Public routes ---
 
 	public := app.Group("/api")
+	public.Get("/health", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 	public.Post("/login", authLimiter, auth.Login)
 	public.Post("/register", authLimiter, auth.Register)
+	public.Post("/logout", auth.Logout)
 	public.Post("/contact", authLimiter, services.SubmitContact)
 	public.Get("/experiences", exp.ListPublicExperiences)
 	public.Get("/skills", skill.ListPublicSkills)
@@ -69,6 +71,7 @@ func SetupRoutes(app *fiber.App, userRepo repository.UserRepository, expRepo rep
 	private.Post("/experiences", exp.CreateExperience)
 	private.Put("/experiences/:id", exp.UpdateExperience)
 	private.Delete("/experiences/:id", exp.DeleteExperience)
+	private.Post("/upload-image", services.UploadImage)
 
 	private.Get("/skills", skill.ListAllSkills)
 	private.Post("/skills", skill.CreateSkill)
