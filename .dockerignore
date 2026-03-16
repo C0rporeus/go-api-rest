@@ -1,10 +1,21 @@
-.env
-.env.*
-data/
-.air.toml
-.golangci.yaml
-scripts/
 .git
-.vscode/
-.cursor/
-tmp/
+.github
+.cursor
+CLAUDE.md
+README.md
+infra
+front-end
+
+# Go specific
+bin/
+*.exe
+*.test
+*.prof
+
+# OS specific
+.DS_Store
+
+# Env files
+.env
+.env.local
+.env.*.local

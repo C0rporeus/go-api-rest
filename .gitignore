@@ -9,6 +9,13 @@
 # Archivos de salida de logs
 *.log
 
+# Binario compilado local
+main
+api
+
+# Archivos de cobertura de tests
+*.out
+
 # Dependencias
 /vendor
 Gopkg.lock
