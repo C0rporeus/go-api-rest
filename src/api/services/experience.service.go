@@ -46,6 +46,8 @@ func (s *ExperienceService) ListPublicExperiences(c fiber.Ctx) error {
 		}
 	}
 
+	SignExperienceList(context.Background(), public)
+
 	etag := buildCollectionETag(public)
 	setPublicCollectionCacheHeaders(c, etag)
 	if matchesIfNoneMatchHeader(c.Get("If-None-Match"), etag) {
@@ -70,12 +72,13 @@ func (s *ExperienceService) ListAllExperiences(c fiber.Ctx) error {
 	if err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "load_experiences_failed", "No se pudo cargar experiencias", err.Error())
 	}
+	SignExperienceList(context.Background(), all)
 	return apiresponse.Success(c, fiber.Map{"items": all})
 }
 
 // CreateExperience godoc
 // @Summary      Crear experiencia
-// @Description  Crea una nueva experiencia. Requiere JWT.
+// @Description  Crea una nueva experiencia. Requiere JWT. imageUrls solo acepta URLs http/https (máx. 10, cada una ≤ 2048 chars); las data: URLs se descartan. Las URLs de GCS deben obtenerse previamente via POST /api/private/upload-image.
 // @Tags         Experiences
 // @Accept       json
 // @Produce      json
@@ -119,7 +122,7 @@ func (s *ExperienceService) CreateExperience(c fiber.Ctx) error {
 
 // UpdateExperience godoc
 // @Summary      Actualizar experiencia
-// @Description  Actualiza una experiencia por ID. Requiere JWT.
+// @Description  Actualiza una experiencia por ID. Requiere JWT. imageUrls solo acepta URLs http/https (máx. 10, cada una ≤ 2048 chars); las data: URLs se descartan.
 // @Tags         Experiences
 // @Accept       json
 // @Produce      json

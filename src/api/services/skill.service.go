@@ -81,6 +81,8 @@ func (s *SkillService) ListPublicSkills(c fiber.Ctx) error {
 		}
 	}
 
+	SignExperienceList(context.Background(), skills)
+
 	etag := buildCollectionETag(skills)
 	setPublicCollectionCacheHeaders(c, etag)
 	if matchesIfNoneMatchHeader(c.Get("If-None-Match"), etag) {
@@ -113,12 +115,13 @@ func (s *SkillService) ListAllSkills(c fiber.Ctx) error {
 		}
 	}
 
+	SignExperienceList(context.Background(), skills)
 	return apiresponse.Success(c, fiber.Map{"items": skills})
 }
 
 // CreateSkill godoc
 // @Summary      Crear skill
-// @Description  Crea una nueva skill. Agrega tag "skill" automaticamente. Requiere JWT.
+// @Description  Crea una nueva skill. Agrega tag "skill" automaticamente. Requiere JWT. imageUrls solo acepta URLs http/https (máx. 10, ≤ 2048 chars); data: URLs se descartan.
 // @Tags         Skills
 // @Accept       json
 // @Produce      json
@@ -162,7 +165,7 @@ func (s *SkillService) CreateSkill(c fiber.Ctx) error {
 
 // UpdateSkill godoc
 // @Summary      Actualizar skill
-// @Description  Actualiza una skill por ID. Requiere JWT.
+// @Description  Actualiza una skill por ID. Requiere JWT. imageUrls solo acepta URLs http/https (máx. 10, ≤ 2048 chars); data: URLs se descartan.
 // @Tags         Skills
 // @Accept       json
 // @Produce      json
