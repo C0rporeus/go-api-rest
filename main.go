@@ -68,7 +68,9 @@ func buildRepositories() (repository.UserRepository, repository.ExperienceReposi
 
 func main() {
 	app := fiber.New(fiber.Config{
-		BodyLimit: constants.BodyLimitDefault,
+		TrustProxy:  true,
+		ProxyHeader: fiber.HeaderXForwardedFor,
+		BodyLimit:   constants.BodyLimitDefault,
 		ErrorHandler: func(c fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			var fiberErr *fiber.Error
@@ -91,7 +93,7 @@ func main() {
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Request-ID"},
 		ExposeHeaders:    []string{"X-Request-ID"},
-		AllowCredentials: false,
+		AllowCredentials: true,
 	}))
 
 	// Global rate limiter

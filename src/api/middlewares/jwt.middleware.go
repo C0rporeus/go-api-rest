@@ -10,18 +10,22 @@ import (
 
 func JWTProtected() fiber.Handler {
 	return func(c fiber.Ctx) error {
-		authHeader := c.Get("Authorization")
+		tokenString := c.Cookies("portfolio_auth_token")
+		if tokenString == "" {
+			authHeader := c.Get("Authorization")
+			if authHeader != "" {
+				parts := strings.SplitN(authHeader, " ", 2)
+				if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+					tokenString = parts[1]
+				}
+			}
+		}
 
-		if authHeader == "" {
+		if tokenString == "" {
 			return apiresponse.Error(c, fiber.StatusUnauthorized, "missing_token", "No se ha proporcionado un token", nil)
 		}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			return apiresponse.Error(c, fiber.StatusUnauthorized, "invalid_token_format", "Formato de token invalido. Use Bearer <token>", nil)
-		}
-
-		token, claims, err := jwtManager.VerifyToken(parts[1])
+		token, claims, err := jwtManager.VerifyToken(tokenString)
 		if err != nil || !token.Valid {
 			return apiresponse.Error(c, fiber.StatusUnauthorized, "invalid_token", "El token no es valido", nil)
 		}

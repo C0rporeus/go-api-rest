@@ -10,8 +10,8 @@
 *.log
 
 # Binario compilado local
-main
-api
+/main
+/api
 
 # Archivos de cobertura de tests
 *.out

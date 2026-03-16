@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"strings"
+	"time"
 
 	models "backend-yonathan/src/models"
 	"backend-yonathan/src/pkg/apiresponse"
@@ -30,6 +31,16 @@ func respondWithToken(c fiber.Ctx, userID, username string) error {
 	if err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "token_generation_failed", "No se pudo generar el token", err.Error())
 	}
+	
+	c.Cookie(&fiber.Cookie{
+		Name:     "portfolio_auth_token",
+		Value:    token,
+		Expires:  time.Now().Add(constants.JWTExpiryDuration()),
+		HTTPOnly: true,
+		Secure:   true,
+		SameSite: "Lax",
+	})
+	
 	return apiresponse.Success(c, fiber.Map{"token": token})
 }
 
@@ -123,6 +134,25 @@ func (s *AuthService) Login(c fiber.Ctx) error {
 	}
 
 	return respondWithToken(c, user.UserId, user.UserName)
+}
+
+// Logout godoc
+// @Summary      Logout de usuarios
+// @Description  Invalida la cookie de sesión
+// @Tags         Auth
+// @Produce      json
+// @Success      200  {object}  map[string]string
+// @Router       /api/logout [post]
+func (s *AuthService) Logout(c fiber.Ctx) error {
+	c.Cookie(&fiber.Cookie{
+		Name:     "portfolio_auth_token",
+		Value:    "",
+		Expires:  time.Now().Add(-1 * time.Hour),
+		HTTPOnly: true,
+		Secure:   true,
+		SameSite: "Lax",
+	})
+	return apiresponse.Success(c, fiber.Map{"message": "Sesion terminada exitosamente"})
 }
 
 // GetCurrentUser godoc
