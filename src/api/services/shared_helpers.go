@@ -59,7 +59,7 @@ func normalizeTags(tags []string) []string {
 func sanitizePayload(p *experiencePayload) {
 	p.Title = sanitizer.SanitizePlainText(p.Title, constants.MaxTitleLength)
 	p.Summary = sanitizer.SanitizePlainText(p.Summary, constants.MaxSummaryLength)
-	p.Body = sanitizer.SanitizeRichText(p.Body, constants.MaxBodyLength)
+	p.Body = StripBodySignedParams(sanitizer.SanitizeRichText(p.Body, constants.MaxBodyLength))
 	p.ImageURLs = normalizeImageURLs(p.ImageURLs)
 	p.Tags = normalizeTags(p.Tags)
 	p.Visibility = normalizeVisibility(p.Visibility)

@@ -13,12 +13,29 @@ import (
 // signURLFunc is injectable for tests. Default: signGCSURL.
 var signURLFunc = signGCSURL
 
+// stripQueryParams removes query-string parameters from a URL, including
+// the case where '?' was URL-encoded as '%3F' (e.g. when a signed URL was
+// saved back by the editor and then re-processed on read).
+func stripQueryParams(u string) string {
+	if pos := strings.Index(u, "?"); pos >= 0 {
+		return u[:pos]
+	}
+	// Also handle URL-encoded '?' left by a previous signing round-trip.
+	if pos := strings.Index(strings.ToLower(u), "%3f"); pos >= 0 {
+		return u[:pos]
+	}
+	return u
+}
+
 // signSingleURL signs a GCS URL if it matches our bucket; external URLs pass through.
+// It always strips any pre-existing query parameters so that a URL that was
+// previously signed and saved back (e.g. by the admin editor) is not double-signed.
 func signSingleURL(ctx context.Context, rawURL, gcsPrefix string, expiry time.Duration) string {
 	if gcsPrefix == "" || !strings.HasPrefix(rawURL, gcsPrefix) {
 		return rawURL
 	}
-	objectPath := strings.TrimPrefix(rawURL, gcsPrefix)
+	baseURL := stripQueryParams(rawURL)
+	objectPath := strings.TrimPrefix(baseURL, gcsPrefix)
 	bucket := constants.GCSBucketName()
 	signed, err := signURLFunc(ctx, bucket, objectPath, expiry)
 	if err != nil {
@@ -65,6 +82,34 @@ func SignBodyImageURLs(ctx context.Context, body string) string {
 		signed := signSingleURL(ctx, rawURL, prefix, expiry)
 		result = result[:start] + signed + result[end:]
 		idx = start + len(signed)
+	}
+	return result
+}
+
+// StripBodySignedParams removes GCS query parameters from all image URLs in an
+// HTML body string. Call this before persisting the body so the database never
+// stores time-limited signed URLs that would expire or cause double-signing.
+func StripBodySignedParams(body string) string {
+	prefix := constants.GCSURLPrefix()
+	if prefix == "" || !strings.Contains(body, prefix) {
+		return body
+	}
+	result := body
+	idx := 0
+	for {
+		pos := strings.Index(result[idx:], prefix)
+		if pos < 0 {
+			break
+		}
+		start := idx + pos
+		end := start + len(prefix)
+		for end < len(result) && result[end] != '"' && result[end] != '\'' && result[end] != ' ' && result[end] != '<' && result[end] != '>' {
+			end++
+		}
+		rawURL := result[start:end]
+		clean := stripQueryParams(rawURL)
+		result = result[:start] + clean + result[end:]
+		idx = start + len(clean)
 	}
 	return result
 }
