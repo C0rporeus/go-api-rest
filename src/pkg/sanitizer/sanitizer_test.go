@@ -172,6 +172,8 @@ func TestIsValidURL(t *testing.T) {
 		{"not-a-url", false},
 		{"", false},
 		{"https://example.com/path?q=1", true},
+		{"data:image/png;base64,iVBORw0KGgo=", false},
+		{"data:image/jpeg;base64,/9j/4AAQ=", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
@@ -292,6 +294,20 @@ func TestValidateURLSlice(t *testing.T) {
 		got := ValidateURLSlice(input, 0)
 		if len(got) != 1 {
 			t.Errorf("expected 1 URL, got %d", len(got))
+		}
+	})
+
+	t.Run("filters out data URLs so they are not persisted", func(t *testing.T) {
+		dataURL := "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+		input := []string{"https://example.com/photo.png", dataURL, "http://cdn.example.com/img.jpg"}
+		got := ValidateURLSlice(input, 0)
+		if len(got) != 2 {
+			t.Errorf("expected 2 valid http(s) URLs (data URL must be filtered), got %d", len(got))
+		}
+		for _, u := range got {
+			if len(u) >= 5 && u[:5] == "data:" {
+				t.Errorf("data URL must not be returned by ValidateURLSlice")
+			}
 		}
 	})
 }

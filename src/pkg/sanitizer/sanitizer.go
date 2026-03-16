@@ -6,6 +6,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"backend-yonathan/src/pkg/constants"
+
 	"github.com/microcosm-cc/bluemonday"
 )
 
@@ -107,8 +109,10 @@ func IsValidIPv4(ip string) bool {
 }
 
 // IsValidURL validates that a string is a well-formed HTTP/HTTPS URL.
+// Only http and https schemes are accepted; data: URLs and other schemes are rejected.
+// Maximum URL length is constants.MaxImageURLLength (2 048 characters).
 func IsValidURL(rawURL string) bool {
-	if len(rawURL) > 2048 {
+	if len(rawURL) > constants.MaxImageURLLength {
 		return false
 	}
 	parsed, err := url.ParseRequestURI(rawURL)
