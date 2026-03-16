@@ -100,8 +100,10 @@ const (
 )
 
 // Request body size limits (in bytes).
+// BodyLimitDefault is set to MaxImageUploadBytes + 1 MB multipart overhead
+// so that POST /api/private/upload-image can reach the handler's own validation.
 const (
-	BodyLimitDefault = 1 * 1024 * 1024
+	BodyLimitDefault = (MaxImageUploadBytes + 1*1024*1024) // 6 MB
 	BodyLimitCerts   = 512 * 1024
 )
 
