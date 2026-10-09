@@ -151,6 +151,15 @@ func RegistrationEnabled() bool {
 	return val == "true" || val == "1"
 }
 
+// GitHub Actions workflow dispatch — used by the redeploy endpoint.
+const (
+	GitHubOwner    = "C0rporeus"
+	GitHubRepo     = "front-end"
+	GitHubWorkflow = "ci.yml"
+	GitHubRef      = "main"
+	GitHubPATEnv   = "GITHUB_DISPATCH_PAT"
+)
+
 // DefaultJWTExpiryHours is the fallback JWT token expiry in hours.
 const DefaultJWTExpiryHours = 24
 

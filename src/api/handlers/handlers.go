@@ -38,6 +38,12 @@ func SetupRoutes(app *fiber.App, userRepo repository.UserRepository, expRepo rep
 		LimitReached: rateLimitReached,
 	})
 
+	// robots.txt — indica a los crawlers que no indexen la API
+	app.Get("/robots.txt", func(c fiber.Ctx) error {
+		c.Set("Content-Type", "text/plain; charset=utf-8")
+		return c.SendString("User-agent: *\nDisallow: /\n")
+	})
+
 	// --- Public routes ---
 
 	public := app.Group("/api")
@@ -83,4 +89,5 @@ func SetupRoutes(app *fiber.App, userRepo repository.UserRepository, expRepo rep
 	private.Get("/ops/health", services.GetOpsHealth)
 	private.Get("/ops/history", services.GetOpsHistory)
 	private.Get("/ops/summary", services.GetOpsSummary)
+	private.Post("/ops/redeploy", services.TriggerRedeploy)
 }
