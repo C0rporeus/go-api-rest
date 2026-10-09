@@ -46,13 +46,15 @@ func (s *ExperienceService) ListPublicExperiences(c fiber.Ctx) error {
 		}
 	}
 
-	SignExperienceList(context.Background(), public)
-
 	etag := buildCollectionETag(public)
 	setPublicCollectionCacheHeaders(c, etag)
 	if matchesIfNoneMatchHeader(c.Get("If-None-Match"), etag) {
 		return c.SendStatus(fiber.StatusNotModified)
 	}
+
+	// Sign only for a 200 response. The stable ETag is based on canonical
+	// object URLs, so a 304 revalidation does not need to mint fresh signatures.
+	SignExperienceList(context.Background(), public)
 
 	return apiresponse.Success(c, fiber.Map{"items": public})
 }

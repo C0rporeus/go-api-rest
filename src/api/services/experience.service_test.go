@@ -2,12 +2,16 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 
+	models "backend-yonathan/src/models"
 	"backend-yonathan/src/pkg/constants"
 	"backend-yonathan/src/repository/memory"
 
@@ -201,5 +205,63 @@ func TestListPublicExperiencesFiltersPrivate(t *testing.T) {
 	items, ok := result["items"].([]any)
 	if !ok || len(items) != 0 {
 		t.Fatalf("expected 0 public experiences, got %v", result["items"])
+	}
+}
+
+func TestListPublicExperiencesUsesStableETagForSignedImageURLs(t *testing.T) {
+	t.Setenv("GCS_BUCKET_NAME", "portfolio-images")
+
+	repo := memory.NewExperienceRepository()
+	item := models.Experience{
+		ID:         "article-1",
+		Title:      "Artículo de prueba",
+		Summary:    "Resumen",
+		Body:       `<p><img src="https://storage.googleapis.com/portfolio-images/article.png?X-Goog-Signature=old"></p>`,
+		ImageURLs:  []string{"https://storage.googleapis.com/portfolio-images/cover.png?X-Goog-Signature=old"},
+		Visibility: constants.VisibilityPublic,
+		CreatedAt:  "2026-01-01T00:00:00Z",
+		UpdatedAt:  "2026-01-01T00:00:00Z",
+	}
+	if err := repo.Create(context.Background(), item); err != nil {
+		t.Fatalf("create experience: %v", err)
+	}
+
+	originalSign := signURLFunc
+	signCalls := 0
+	signURLFunc = func(_ context.Context, _, object string, _ time.Duration) (string, error) {
+		signCalls++
+		return "https://storage.googleapis.com/portfolio-images/" + object + "?X-Goog-Signature=" + strconv.Itoa(signCalls), nil
+	}
+	t.Cleanup(func() { signURLFunc = originalSign })
+
+	app := fiber.New()
+	app.Get("/experiences", NewExperienceService(repo).ListPublicExperiences)
+	firstResponse, err := app.Test(httptest.NewRequest(http.MethodGet, "/experiences", nil))
+	if err != nil {
+		t.Fatalf("first request: %v", err)
+	}
+	if firstResponse.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected first response 200, got %d", firstResponse.StatusCode)
+	}
+	etag := firstResponse.Header.Get("ETag")
+	if etag == "" {
+		t.Fatal("expected ETag on first response")
+	}
+	signCallsAfterFirstResponse := signCalls
+
+	secondRequest := httptest.NewRequest(http.MethodGet, "/experiences", nil)
+	secondRequest.Header.Set("If-None-Match", etag)
+	secondResponse, err := app.Test(secondRequest)
+	if err != nil {
+		t.Fatalf("revalidation request: %v", err)
+	}
+	if secondResponse.StatusCode != fiber.StatusNotModified {
+		t.Fatalf("expected revalidation response 304, got %d", secondResponse.StatusCode)
+	}
+	if secondResponse.Header.Get("ETag") != etag {
+		t.Fatalf("expected stable ETag %q, got %q", etag, secondResponse.Header.Get("ETag"))
+	}
+	if signCalls != signCallsAfterFirstResponse {
+		t.Fatalf("expected 304 revalidation to skip URL signing; signing calls changed from %d to %d", signCallsAfterFirstResponse, signCalls)
 	}
 }

@@ -14,7 +14,26 @@ import (
 // --- HTTP / caching helpers ---
 
 func buildCollectionETag(items []userModel.Experience) string {
-	payload, err := json.Marshal(items)
+	// GCS signed URLs contain time-varying query parameters. They are an
+	// access mechanism, not content, so exclude their signatures from the
+	// validator; otherwise every request looks like a content change and a
+	// client can never reuse its cached representation with a 304 response.
+	canonical := make([]userModel.Experience, len(items))
+	copy(canonical, items)
+	gcsPrefix := constants.GCSURLPrefix()
+	if gcsPrefix != "" {
+		for i := range canonical {
+			canonical[i].ImageURLs = append([]string(nil), items[i].ImageURLs...)
+			for j, imageURL := range canonical[i].ImageURLs {
+				if strings.HasPrefix(imageURL, gcsPrefix) {
+					canonical[i].ImageURLs[j] = stripQueryParams(imageURL)
+				}
+			}
+			canonical[i].Body = StripBodySignedParams(canonical[i].Body)
+		}
+	}
+
+	payload, err := json.Marshal(canonical)
 	if err != nil {
 		return ""
 	}
