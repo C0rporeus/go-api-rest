@@ -1,7 +1,10 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"image/png"
+	"io"
 	"path/filepath"
 	"strings"
 
@@ -22,7 +25,7 @@ var uploadToBucketFunc = uploadToGCS
 // @Accept       multipart/form-data
 // @Produce      json
 // @Param        file  formData  file  true  "Imagen (JPEG, PNG, GIF, WebP; máx 5 MB)"
-// @Success      200   {object}  map[string]string  "url"
+// @Success      200   {object}  map[string]string  "url (canónica, para persistir) y previewUrl (firmada, temporal)"
 // @Failure      400   {object}  map[string]interface{}
 // @Failure      413   {object}  map[string]interface{}
 // @Failure      503   {object}  map[string]interface{}
@@ -63,14 +66,44 @@ func UploadImage(c fiber.Ctx) error {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "read_file_failed", "No se pudo leer el archivo", err.Error())
 	}
 	defer opened.Close()
+	original, err := io.ReadAll(opened)
+	if err != nil {
+		return apiresponse.Error(c, fiber.StatusInternalServerError, "read_file_failed", "No se pudo leer la imagen", err.Error())
+	}
+	optimized := optimizePNG(contentType, original)
 
 	ctx := context.Background()
-	publicURL, err := uploadToBucketFunc(ctx, bucket, objectPath, contentType, opened)
+	publicURL, err := uploadToBucketFunc(ctx, bucket, objectPath, contentType, bytes.NewReader(optimized))
 	if err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "upload_failed", "No se pudo subir la imagen", err.Error())
 	}
 
-	return apiresponse.Success(c, fiber.Map{"url": publicURL})
+	// The bucket is private: "url" is the canonical URL to persist, while
+	// "previewUrl" is a short-lived signed URL so the admin can render it now.
+	previewURL := signSingleURL(ctx, publicURL, constants.GCSURLPrefix(), constants.SignedURLExpiry())
+	return apiresponse.Success(c, fiber.Map{"url": publicURL, "previewUrl": previewURL})
+}
+
+// optimizePNG recompresses valid, reasonably sized PNGs losslessly. Other
+// formats and malformed PNG payloads are passed through unchanged.
+func optimizePNG(contentType string, original []byte) []byte {
+	if strings.ToLower(strings.TrimSpace(contentType)) != "image/png" {
+		return original
+	}
+	config, err := png.DecodeConfig(bytes.NewReader(original))
+	if err != nil || config.Width <= 0 || config.Height <= 0 || int64(config.Width)*int64(config.Height) > 25_000_000 {
+		return original
+	}
+	image, err := png.Decode(bytes.NewReader(original))
+	if err != nil {
+		return original
+	}
+	var compressed bytes.Buffer
+	encoder := png.Encoder{CompressionLevel: png.BestCompression}
+	if err := encoder.Encode(&compressed, image); err != nil || compressed.Len() >= len(original) {
+		return original
+	}
+	return compressed.Bytes()
 }
 
 func isAllowedImageContentType(ct string) bool {

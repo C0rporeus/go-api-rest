@@ -42,8 +42,20 @@ func normalizeVisibility(visibility string) string {
 	return v
 }
 
+// normalizeImageURLs validates URLs and drops signing params from GCS URLs so the
+// database never stores expiring signed URLs (the admin edits signed copies).
 func normalizeImageURLs(urls []string) []string {
-	return sanitizer.ValidateURLSlice(urls, constants.MaxImageURLCount)
+	valid := sanitizer.ValidateURLSlice(urls, constants.MaxImageURLCount)
+	prefix := constants.GCSURLPrefix()
+	if prefix == "" {
+		return valid
+	}
+	for i, u := range valid {
+		if strings.HasPrefix(u, prefix) {
+			valid[i] = stripQueryParams(u)
+		}
+	}
+	return valid
 }
 
 func normalizeTags(tags []string) []string {

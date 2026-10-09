@@ -124,6 +124,9 @@ func TestUploadImage_Success(t *testing.T) {
 		return "https://storage.googleapis.com/test-bucket/" + objectPath, nil
 	}
 	t.Cleanup(func() { uploadToBucketFunc = original })
+	originalSign := signURLFunc
+	signURLFunc = stubSignURL("https://signed.example.com/")
+	t.Cleanup(func() { signURLFunc = originalSign })
 
 	app := fiber.New()
 	app.Post("/upload-image", UploadImage)
@@ -157,8 +160,26 @@ func TestUploadImage_Success(t *testing.T) {
 		t.Errorf("expected url in response, got %v", out)
 		return
 	}
-	if s, ok := u.(string); !ok || s == "" {
-		t.Errorf("expected url string, got %v", u)
+	if s, ok := u.(string); !ok || !strings.HasPrefix(s, "https://storage.googleapis.com/test-bucket/") {
+		t.Errorf("expected canonical url string, got %v", u)
+	}
+	if p, ok := out["previewUrl"].(string); !ok || !strings.HasPrefix(p, "https://signed.example.com/") {
+		t.Errorf("expected signed previewUrl, got %v", out["previewUrl"])
+	}
+}
+
+func TestNormalizeImageURLs_StripsSignedParamsFromGCS(t *testing.T) {
+	t.Setenv("GCS_BUCKET_NAME", "test-bucket")
+	got := normalizeImageURLs([]string{
+		"https://storage.googleapis.com/test-bucket/portfolio-images/a.jpg?X-Goog-Signature=abc",
+		"https://example.com/b.jpg?w=200",
+	})
+	want := []string{
+		"https://storage.googleapis.com/test-bucket/portfolio-images/a.jpg",
+		"https://example.com/b.jpg?w=200",
+	}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("normalizeImageURLs() = %v, want %v", got, want)
 	}
 }
 
