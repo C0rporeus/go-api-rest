@@ -93,7 +93,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Autentica con email/password y devuelve un JWT
+      description: Autentica con email/password y establece una sesion en cookie HttpOnly
       parameters:
       - description: Credenciales
         in: body
@@ -110,10 +110,10 @@ paths:
       - application/json
       responses:
         "200":
-          description: token
+          description: authenticated
           schema:
             additionalProperties:
-              type: string
+              type: boolean
             type: object
         "400":
           description: Bad Request
@@ -128,6 +128,51 @@ paths:
       summary: Login de usuarios
       tags:
       - Auth
+  /api/logout:
+    post:
+      description: Invalida la cookie de sesión
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Logout de usuarios
+      tags:
+      - Auth
+  /api/media/{name}:
+    get:
+      description: Sirve una imagen subida vía upload-image con URL permanente y cacheable.
+        Pensado para og:image / twitter:image, que no admiten URLs firmadas que expiran.
+      parameters:
+      - description: Nombre del objeto (uuid.ext)
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: 'og: recorte 1200x630 JPEG para tarjetas sociales'
+        in: query
+        name: variant
+        type: string
+      produces:
+      - image/jpeg
+      - image/png
+      - image/gif
+      - image/webp
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Imagen pública estable
+      tags:
+      - Media
   /api/private/experiences:
     get:
       description: Devuelve todas las experiencias (publicas y privadas). Requiere
@@ -158,7 +203,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Crea una nueva experiencia. Requiere JWT.
+      description: 'Crea una nueva experiencia. Requiere JWT. imageUrls solo acepta
+        URLs http/https (máx. 10, cada una ≤ 2048 chars); las data: URLs se descartan.
+        Las URLs de GCS deben obtenerse previamente via POST /api/private/upload-image.'
       parameters:
       - description: Datos
         in: body
@@ -245,7 +292,9 @@ paths:
     put:
       consumes:
       - application/json
-      description: Actualiza una experiencia por ID. Requiere JWT.
+      description: 'Actualiza una experiencia por ID. Requiere JWT. imageUrls solo
+        acepta URLs http/https (máx. 10, cada una ≤ 2048 chars); las data: URLs se
+        descartan.'
       parameters:
       - description: ID de la experiencia
         in: path
@@ -409,6 +458,33 @@ paths:
       summary: Metricas operativas
       tags:
       - Ops
+  /api/private/ops/redeploy:
+    post:
+      description: Llama al workflow de GitHub Actions para reconstruir y publicar
+        el sitio. Requiere JWT.
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Disparar redespliegue del frontend
+      tags:
+      - Ops
   /api/private/ops/summary:
     get:
       description: Resumen agregado para semaforo de salud. Requiere JWT.
@@ -432,15 +508,15 @@ paths:
       - Ops
   /api/private/refresh:
     post:
-      description: Genera un nuevo JWT a partir del token actual (debe ser valido)
+      description: Renueva la cookie de sesion a partir del token actual
       produces:
       - application/json
       responses:
         "200":
-          description: token
+          description: authenticated
           schema:
             additionalProperties:
-              type: string
+              type: boolean
             type: object
         "401":
           description: Unauthorized
@@ -486,8 +562,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Crea una nueva skill. Agrega tag "skill" automaticamente. Requiere
-        JWT.
+      description: 'Crea una nueva skill. Agrega tag "skill" automaticamente. Requiere
+        JWT. imageUrls solo acepta URLs http/https (máx. 10, ≤ 2048 chars); data:
+        URLs se descartan.'
       parameters:
       - description: Datos
         in: body
@@ -574,7 +651,8 @@ paths:
     put:
       consumes:
       - application/json
-      description: Actualiza una skill por ID. Requiere JWT.
+      description: 'Actualiza una skill por ID. Requiere JWT. imageUrls solo acepta
+        URLs http/https (máx. 10, ≤ 2048 chars); data: URLs se descartan.'
       parameters:
       - description: ID de la skill
         in: path
@@ -631,11 +709,52 @@ paths:
       summary: Actualizar skill
       tags:
       - Skills
+  /api/private/upload-image:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Recibe un archivo de imagen (multipart "file"), lo sube al bucket
+        GCP y devuelve la URL pública. Requiere JWT.
+      parameters:
+      - description: Imagen (JPEG, PNG, GIF, WebP; máx 5 MB)
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: url (canónica, para persistir) y previewUrl (firmada, temporal)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "413":
+          description: Request Entity Too Large
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Subir imagen
+      tags:
+      - Upload
   /api/register:
     post:
       consumes:
       - application/json
-      description: Crea una cuenta nueva y devuelve un JWT
+      description: Crea una cuenta y establece una sesion en cookie HttpOnly
       parameters:
       - description: Datos de registro
         in: body
@@ -654,10 +773,10 @@ paths:
       - application/json
       responses:
         "200":
-          description: token
+          description: authenticated
           schema:
             additionalProperties:
-              type: string
+              type: boolean
             type: object
         "400":
           description: Bad Request

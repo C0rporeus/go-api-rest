@@ -103,7 +103,7 @@ const docTemplate = `{
         },
         "/api/login": {
             "post": {
-                "description": "Autentica con email/password y devuelve un JWT",
+                "description": "Autentica con email/password y establece una sesion en cookie HttpOnly",
                 "consumes": [
                     "application/json"
                 ],
@@ -135,11 +135,11 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "token",
+                        "description": "authenticated",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
-                                "type": "string"
+                                "type": "boolean"
                             }
                         }
                     },
@@ -152,6 +152,71 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/logout": {
+            "post": {
+                "description": "Invalida la cookie de sesión",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Logout de usuarios",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{name}": {
+            "get": {
+                "description": "Sirve una imagen subida vía upload-image con URL permanente y cacheable. Pensado para og:image / twitter:image, que no admiten URLs firmadas que expiran.",
+                "produces": [
+                    "image/jpeg",
+                    "image/png",
+                    "image/gif",
+                    "image/webp"
+                ],
+                "tags": [
+                    "Media"
+                ],
+                "summary": "Imagen pública estable",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Nombre del objeto (uuid.ext)",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "og: recorte 1200x630 JPEG para tarjetas sociales",
+                        "name": "variant",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -205,7 +270,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Crea una nueva experiencia. Requiere JWT.",
+                "description": "Crea una nueva experiencia. Requiere JWT. imageUrls solo acepta URLs http/https (máx. 10, cada una ≤ 2048 chars); las data: URLs se descartan. Las URLs de GCS deben obtenerse previamente via POST /api/private/upload-image.",
                 "consumes": [
                     "application/json"
                 ],
@@ -284,7 +349,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Actualiza una experiencia por ID. Requiere JWT.",
+                "description": "Actualiza una experiencia por ID. Requiere JWT. imageUrls solo acepta URLs http/https (máx. 10, cada una ≤ 2048 chars); las data: URLs se descartan.",
                 "consumes": [
                     "application/json"
                 ],
@@ -591,6 +656,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/private/ops/redeploy": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Llama al workflow de GitHub Actions para reconstruir y publicar el sitio. Requiere JWT.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Ops"
+                ],
+                "summary": "Disparar redespliegue del frontend",
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/private/ops/summary": {
             "get": {
                 "security": [
@@ -631,7 +736,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Genera un nuevo JWT a partir del token actual (debe ser valido)",
+                "description": "Renueva la cookie de sesion a partir del token actual",
                 "produces": [
                     "application/json"
                 ],
@@ -641,11 +746,11 @@ const docTemplate = `{
                 "summary": "Renovar token JWT",
                 "responses": {
                     "200": {
-                        "description": "token",
+                        "description": "authenticated",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
-                                "type": "string"
+                                "type": "boolean"
                             }
                         }
                     },
@@ -711,7 +816,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Crea una nueva skill. Agrega tag \"skill\" automaticamente. Requiere JWT.",
+                "description": "Crea una nueva skill. Agrega tag \"skill\" automaticamente. Requiere JWT. imageUrls solo acepta URLs http/https (máx. 10, ≤ 2048 chars); data: URLs se descartan.",
                 "consumes": [
                     "application/json"
                 ],
@@ -790,7 +895,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Actualiza una skill por ID. Requiere JWT.",
+                "description": "Actualiza una skill por ID. Requiere JWT. imageUrls solo acepta URLs http/https (máx. 10, ≤ 2048 chars); data: URLs se descartan.",
                 "consumes": [
                     "application/json"
                 ],
@@ -930,9 +1035,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/private/upload-image": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Recibe un archivo de imagen (multipart \"file\"), lo sube al bucket GCP y devuelve la URL pública. Requiere JWT.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Upload"
+                ],
+                "summary": "Subir imagen",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Imagen (JPEG, PNG, GIF, WebP; máx 5 MB)",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "url (canónica, para persistir) y previewUrl (firmada, temporal)",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/register": {
             "post": {
-                "description": "Crea una cuenta nueva y devuelve un JWT",
+                "description": "Crea una cuenta y establece una sesion en cookie HttpOnly",
                 "consumes": [
                     "application/json"
                 ],
@@ -967,11 +1133,11 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "token",
+                        "description": "authenticated",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
-                                "type": "string"
+                                "type": "boolean"
                             }
                         }
                     },
