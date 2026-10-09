@@ -112,8 +112,15 @@ func TestRegisterAndLoginSuccess(t *testing.T) {
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		t.Fatalf("invalid login payload: %v", err)
 	}
-	if _, ok := payload["token"]; !ok {
-		t.Fatalf("expected token in login payload")
+	if payload["authenticated"] != true {
+		t.Fatalf("expected authenticated=true in login payload, got %v", payload)
+	}
+	if _, exposed := payload["token"]; exposed {
+		t.Fatal("login payload must not expose the JWT")
+	}
+	cookie := loginRes.Header.Get("Set-Cookie")
+	if !strings.Contains(cookie, "HttpOnly") || !strings.Contains(strings.ToLower(cookie), "secure") {
+		t.Fatalf("expected secure HttpOnly session cookie, got %q", cookie)
 	}
 }
 
@@ -283,8 +290,11 @@ func TestRefreshTokenSuccess(t *testing.T) {
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		t.Fatalf("invalid refresh payload: %v", err)
 	}
-	if _, ok := payload["token"]; !ok {
-		t.Fatalf("expected token in refresh payload")
+	if payload["authenticated"] != true {
+		t.Fatalf("expected authenticated=true in refresh payload, got %v", payload)
+	}
+	if _, exposed := payload["token"]; exposed {
+		t.Fatal("refresh payload must not expose the JWT")
 	}
 }
 

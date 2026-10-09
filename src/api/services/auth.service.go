@@ -31,7 +31,7 @@ func respondWithToken(c fiber.Ctx, userID, username string) error {
 	if err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "token_generation_failed", "No se pudo generar el token", err.Error())
 	}
-	
+
 	c.Cookie(&fiber.Cookie{
 		Name:     "portfolio_auth_token",
 		Value:    token,
@@ -40,18 +40,18 @@ func respondWithToken(c fiber.Ctx, userID, username string) error {
 		Secure:   true,
 		SameSite: "Lax",
 	})
-	
-	return apiresponse.Success(c, fiber.Map{"token": token})
+
+	return apiresponse.Success(c, fiber.Map{"authenticated": true})
 }
 
 // Register godoc
 // @Summary      Registro de usuarios
-// @Description  Crea una cuenta nueva y devuelve un JWT
+// @Description  Crea una cuenta y establece una sesion en cookie HttpOnly
 // @Tags         Auth
 // @Accept       json
 // @Produce      json
 // @Param        user  body  object{email=string,password=string,username=string}  true  "Datos de registro"
-// @Success      200  {object}  map[string]string  "token"
+// @Success      200  {object}  map[string]bool  "authenticated"
 // @Failure      400  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/register [post]
@@ -97,12 +97,12 @@ func (s *AuthService) Register(c fiber.Ctx) error {
 
 // Login godoc
 // @Summary      Login de usuarios
-// @Description  Autentica con email/password y devuelve un JWT
+// @Description  Autentica con email/password y establece una sesion en cookie HttpOnly
 // @Tags         Auth
 // @Accept       json
 // @Produce      json
 // @Param        credentials  body  object{email=string,password=string}  true  "Credenciales"
-// @Success      200  {object}  map[string]string  "token"
+// @Success      200  {object}  map[string]bool  "authenticated"
 // @Failure      400  {object}  map[string]interface{}
 // @Failure      401  {object}  map[string]interface{}
 // @Router       /api/login [post]
@@ -173,11 +173,11 @@ func GetCurrentUser(c fiber.Ctx) error {
 
 // RefreshToken godoc
 // @Summary      Renovar token JWT
-// @Description  Genera un nuevo JWT a partir del token actual (debe ser valido)
+// @Description  Renueva la cookie de sesion a partir del token actual
 // @Tags         Auth
 // @Produce      json
 // @Security     BearerAuth
-// @Success      200  {object}  map[string]string  "token"
+// @Success      200  {object}  map[string]bool  "authenticated"
 // @Failure      401  {object}  map[string]interface{}
 // @Failure      500  {object}  map[string]interface{}
 // @Router       /api/private/refresh [post]
@@ -191,4 +191,3 @@ func RefreshToken(c fiber.Ctx) error {
 
 	return respondWithToken(c, userId, username)
 }
-

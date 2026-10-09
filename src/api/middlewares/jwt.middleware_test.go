@@ -26,7 +26,7 @@ func TestJWTProtectedRejectsMissingToken(t *testing.T) {
 	}
 }
 
-func TestJWTProtectedAcceptsValidBearer(t *testing.T) {
+func TestJWTProtectedAcceptsHttpOnlySessionCookie(t *testing.T) {
 	t.Setenv("JWT_SECRET", "test-secret")
 	_ = os.Setenv("JWT_SECRET", "test-secret")
 
@@ -41,12 +41,33 @@ func TestJWTProtectedAcceptsValidBearer(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/private", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.AddCookie(&http.Cookie{Name: "portfolio_auth_token", Value: token})
 	res, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("unexpected app test error: %v", err)
 	}
 	if res.StatusCode != fiber.StatusOK {
 		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+}
+
+func TestJWTProtectedRejectsBearerToken(t *testing.T) {
+	t.Setenv("JWT_SECRET", "test-secret")
+	token, err := jwtManager.GenerateToken("u-123", "tester")
+	if err != nil {
+		t.Fatalf("unexpected token generation error: %v", err)
+	}
+	app := fiber.New()
+	app.Get("/private", JWTProtected(), func(c fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodGet, "/private", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("unexpected app test error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusUnauthorized {
+		t.Fatalf("expected bearer-only request to get 401, got %d", res.StatusCode)
 	}
 }
