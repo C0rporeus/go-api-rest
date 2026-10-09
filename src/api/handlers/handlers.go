@@ -41,7 +41,8 @@ func SetupRoutes(app *fiber.App, userRepo repository.UserRepository, expRepo rep
 	// robots.txt — indica a los crawlers que no indexen la API
 	app.Get("/robots.txt", func(c fiber.Ctx) error {
 		c.Set("Content-Type", "text/plain; charset=utf-8")
-		return c.SendString("User-agent: *\nDisallow: /\n")
+		// /api/media/ queda permitido: los crawlers de Open Graph descargan og:image desde ahí.
+		return c.SendString("User-agent: *\nAllow: /api/media/\nDisallow: /\n")
 	})
 
 	// --- Public routes ---
@@ -54,6 +55,7 @@ func SetupRoutes(app *fiber.App, userRepo repository.UserRepository, expRepo rep
 	public.Post("/contact", authLimiter, services.SubmitContact)
 	public.Get("/experiences", exp.ListPublicExperiences)
 	public.Get("/skills", skill.ListPublicSkills)
+	public.Get("/media/:name", services.ServePublicImage)
 
 	// --- Tools (public, no auth) ---
 

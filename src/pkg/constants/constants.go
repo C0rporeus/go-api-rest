@@ -35,6 +35,9 @@ var DNSBLProviders = []string{
 // Cache-Control header for public collection responses.
 const PublicCollectionCacheControl = "public, max-age=60, stale-while-revalidate=300"
 
+// PublicMediaCacheControl caches immutable uploaded images (object names are UUIDs).
+const PublicMediaCacheControl = "public, max-age=604800, immutable"
+
 // Certificate generation defaults.
 const (
 	DefaultCertCommonName   = "localhost"
