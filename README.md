@@ -56,6 +56,8 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000
 GCS_BUCKET_NAME=porfolio-58ea0.appspot.com
 ```
 
+> **CORS en producción:** con `K_SERVICE` (Cloud Run) o `APP_ENV=production` solo se aceptan orígenes `https` públicos; `localhost`, IPs de loopback o privadas y `http://` se descartan aunque estén en `CORS_ALLOWED_ORIGINS` (se registra un aviso). Valor de producción: `https://www.yonathangutierrez.dev`.
+
 `GCS_BUCKET_NAME`: bucket de Google Cloud Storage (o Firebase Storage) donde el backend sube las imágenes del admin/editor. Si no se define, `POST /api/private/upload-image` responde 503. Credenciales vía `GOOGLE_APPLICATION_CREDENTIALS` o ADC.
 
 `SIGNED_URL_EXPIRY_HOURS` (opcional, default 168 = 7 días): duración de las URLs firmadas que el backend genera al servir imágenes. Las imágenes subidas al bucket son privadas; los endpoints de lectura (experiencias, skills) devuelven URLs firmadas V4 con expiración temporal.

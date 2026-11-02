@@ -84,12 +84,15 @@ func main() {
 	// Security headers (X-Content-Type-Options, X-Frame-Options, CSP, etc.)
 	app.Use(helmet.New())
 
-	allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
-	if allowedOrigins == "" {
-		allowedOrigins = "http://localhost:3000"
+	// In production only public https origins are trusted (localhost or plain
+	// http left in CORS_ALLOWED_ORIGINS is dropped); see config.AllowedCORSOrigins.
+	allowedOrigins, droppedOrigins := config.AllowedCORSOrigins(
+		os.Getenv("CORS_ALLOWED_ORIGINS"), config.IsProduction(os.Getenv))
+	if len(droppedOrigins) > 0 {
+		log.Printf("ignoring CORS origins not allowed in production: %v", droppedOrigins)
 	}
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     strings.Split(allowedOrigins, ","),
+		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Request-ID"},
 		ExposeHeaders:    []string{"X-Request-ID"},
