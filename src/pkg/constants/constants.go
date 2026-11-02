@@ -141,6 +141,41 @@ func GCSURLPrefix() string {
 	return "https://storage.googleapis.com/" + bucket + "/"
 }
 
+// Server-rendered blog pages (GET /blog/:id, reached through a Firebase Hosting
+// rewrite). The page is the static Next.js shell plus per-article meta tags.
+const (
+	DefaultSiteURL       = "https://www.yonathangutierrez.dev"
+	DefaultPublicAPIURL  = "https://api.yonathangutierrez.dev"
+	BlogShellPath        = "/blog/articulo/"
+	BlogShellTTL         = 60 * time.Second
+	BlogPageCacheControl = "public, max-age=0, s-maxage=60"
+	BlogSiteName         = "Yonathan Gutierrez"
+)
+
+// SiteURL is the canonical public site (SITE_URL overrides it).
+func SiteURL() string { return envOrDefault("SITE_URL", DefaultSiteURL) }
+
+// PublicAPIURL is the public base URL of this API, used for og:image links
+// (PUBLIC_API_URL overrides it).
+func PublicAPIURL() string { return envOrDefault("PUBLIC_API_URL", DefaultPublicAPIURL) }
+
+// BlogShellURL is where the static article shell is fetched from
+// (BLOG_SHELL_URL overrides it, e.g. a local Next.js export).
+func BlogShellURL() string {
+	if v := strings.TrimSpace(os.Getenv("BLOG_SHELL_URL")); v != "" {
+		return v
+	}
+	return SiteURL() + BlogShellPath
+}
+
+// envOrDefault returns the trimmed env value without a trailing slash, or fallback.
+func envOrDefault(key, fallback string) string {
+	if v := strings.TrimRight(strings.TrimSpace(os.Getenv(key)), "/"); v != "" {
+		return v
+	}
+	return fallback
+}
+
 // Firestore defaults.
 const (
 	FirestoreUsersCollection       = "users"

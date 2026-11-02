@@ -16,6 +16,7 @@ func SetupRoutes(app *fiber.App, userRepo repository.UserRepository, expRepo rep
 	auth := services.NewAuthService(userRepo)
 	exp := services.NewExperienceService(expRepo)
 	skill := services.NewSkillService(expRepo)
+	blog := services.NewBlogPageService(expRepo)
 
 	rateLimitReached := func(c fiber.Ctx) error {
 		return apiresponse.Error(c, fiber.StatusTooManyRequests,
@@ -44,6 +45,12 @@ func SetupRoutes(app *fiber.App, userRepo repository.UserRepository, expRepo rep
 		// /api/media/ queda permitido: los crawlers de Open Graph descargan og:image desde ahí.
 		return c.SendString("User-agent: *\nAllow: /api/media/\nDisallow: /\n")
 	})
+
+	// Server-rendered article pages. Firebase Hosting rewrites
+	// www.yonathangutierrez.dev/blog/** (except static files such as the blog
+	// index and the /blog/articulo/ shell) to this route, so each article's HTML
+	// and Open Graph tags are built from the database on every request.
+	app.Get("/blog/:id", blog.RenderArticle)
 
 	// --- Public routes ---
 

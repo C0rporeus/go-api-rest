@@ -31,6 +31,7 @@ type experiencePayload struct {
 //
 // Files using this pattern:
 //   - contact.service.go → logContactMessage (logging)
+//   - blog_page.service.go → fetchBlogShellFunc (HTTP fetch of the static blog shell)
 
 // --- Data normalization helpers ---
 
