@@ -46,3 +46,26 @@ func TestAuthRateLimiter(t *testing.T) {
 		}
 	}
 }
+
+func TestMailAuditHasItsOwnStricterRateLimit(t *testing.T) {
+	app := fiber.New()
+	SetupRoutes(app, memory.NewUserRepository(), memory.NewExperienceRepository())
+
+	limit := constants.RateLimitMailAuditMax
+	if limit >= constants.RateLimitToolsMax {
+		t.Fatalf("mail-audit limit (%d) must be stricter than the generic tools limit (%d)", limit, constants.RateLimitToolsMax)
+	}
+	for i := 0; i < limit+1; i++ {
+		// An invalid domain answers 400 without any DNS query: only the limiter is exercised.
+		res, err := app.Test(httptest.NewRequest(http.MethodGet, "/api/tools/dns/mail-audit?domain=bad_domain", nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i < limit && res.StatusCode == fiber.StatusTooManyRequests {
+			t.Fatalf("request %d limited too early", i+1)
+		}
+		if i == limit && res.StatusCode != fiber.StatusTooManyRequests {
+			t.Fatalf("request %d expected 429, got %d", i+1, res.StatusCode)
+		}
+	}
+}

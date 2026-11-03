@@ -8,6 +8,7 @@ TARGET_PACKAGES=(
   "./src/api/services"
   "./src/api/middlewares"
   "./src/pkg/apiresponse"
+  "./src/pkg/mailaudit"
   "./src/pkg/telemetry"
   "./src/pkg/utils"
 )

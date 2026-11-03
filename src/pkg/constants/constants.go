@@ -38,6 +38,19 @@ var DNSBLProviders = []string{
 	"dnsbl.dronebl.org",
 }
 
+// Mail audit (SPF/DKIM/DMARC) limits.
+const (
+	MailAuditTimeout    = 8 * time.Second
+	MailAuditMaxQueries = 50 // hard cap of DNS queries per audit (SPF includes, DKIM probes...)
+	MaxDKIMSelectorLen  = 63
+)
+
+// DKIMCommonSelectors are probed when the caller does not name a selector.
+// DKIM selectors are arbitrary, so not finding one is only informational.
+var DKIMCommonSelectors = []string{
+	"default", "google", "selector1", "selector2", "k1", "k2", "s1", "s2", "mandrill", "dkim",
+}
+
 // Cache-Control header for public collection responses.
 const PublicCollectionCacheControl = "public, max-age=60, stale-while-revalidate=300"
 
@@ -92,6 +105,7 @@ const (
 	RateLimitAuthWindow   = 60
 	RateLimitToolsMax     = 30
 	RateLimitToolsWindow  = 60
+	RateLimitMailAuditMax = 10 // mail-audit makes many DNS queries per request
 	RateLimitGlobalMax    = 100
 	RateLimitGlobalWindow = 60
 )

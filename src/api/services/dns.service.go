@@ -156,12 +156,13 @@ func CheckPropagation(c fiber.Ctx) error {
 
 // GetMailRecords godoc
 // @Summary      Registros de correo
-// @Description  Consulta registros MX, SPF, DKIM y DMARC de un dominio
+// @Description  Obsoleto: usa /api/tools/dns/mail-audit. Consulta registros MX, SPF, DKIM y DMARC de un dominio sin evaluarlos
 // @Tags         DNS
 // @Produce      json
 // @Param        domain  query  string  true  "Dominio"
 // @Success      200  {object}  map[string]interface{}  "domain, mx, spf, dkim, dmarc"
 // @Failure      400  {object}  map[string]interface{}
+// @Deprecated
 // @Router       /api/tools/dns/mail-records [get]
 func GetMailRecords(c fiber.Ctx) error {
 	domain := strings.TrimSpace(c.Query("domain"))

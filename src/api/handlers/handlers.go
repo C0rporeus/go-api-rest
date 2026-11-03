@@ -39,6 +39,13 @@ func SetupRoutes(app *fiber.App, userRepo repository.UserRepository, expRepo rep
 		LimitReached: rateLimitReached,
 	})
 
+	// Stricter limiter for the mail audit: each request fans out into many DNS queries.
+	mailAuditLimiter := limiter.New(limiter.Config{
+		Max:          constants.RateLimitMailAuditMax,
+		Expiration:   time.Duration(constants.RateLimitToolsWindow) * time.Second,
+		LimitReached: rateLimitReached,
+	})
+
 	// robots.txt — indica a los crawlers que no indexen la API
 	app.Get("/robots.txt", func(c fiber.Ctx) error {
 		c.Set("Content-Type", "text/plain; charset=utf-8")
@@ -73,6 +80,7 @@ func SetupRoutes(app *fiber.App, userRepo repository.UserRepository, expRepo rep
 	tools.Get("/dns/resolve", services.ResolveDomain)
 	tools.Get("/dns/propagation", services.CheckPropagation)
 	tools.Get("/dns/mail-records", services.GetMailRecords)
+	tools.Get("/dns/mail-audit", mailAuditLimiter, services.MailAudit)
 	tools.Get("/dns/blacklist", services.CheckBlacklist)
 
 	// --- Private routes (require JWT) ---
