@@ -46,6 +46,12 @@ func (s *ExperienceService) ListPublicExperiences(c fiber.Ctx) error {
 		}
 	}
 
+	// ?view=cards returns summaries without the HTML body (landing page).
+	cards := c.Query("view") == cardsViewParam
+	if cards {
+		public = toCardViews(public)
+	}
+
 	etag := buildCollectionETag(public)
 	setPublicCollectionCacheHeaders(c, etag)
 	if matchesIfNoneMatchHeader(c.Get("If-None-Match"), etag) {

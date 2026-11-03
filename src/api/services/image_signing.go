@@ -117,6 +117,9 @@ func StripBodySignedParams(body string) string {
 // SignExperienceImageURLs signs all GCS image URLs in a single experience (imageUrls + body).
 func SignExperienceImageURLs(ctx context.Context, exp *models.Experience) {
 	exp.ImageURLs = SignImageURLs(ctx, exp.ImageURLs)
+	if exp.ThumbURL != "" {
+		exp.ThumbURL = SignImageURLs(ctx, []string{exp.ThumbURL})[0]
+	}
 	exp.Body = SignBodyImageURLs(ctx, exp.Body)
 }
 
