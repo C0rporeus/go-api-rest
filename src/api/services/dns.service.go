@@ -25,7 +25,7 @@ type dnsResolver interface {
 
 // newDNSResolver is the factory for DNS resolvers. Override in tests.
 var newDNSResolver = func() dnsResolver {
-	return &net.Resolver{}
+	return fqdnResolver{inner: &net.Resolver{}}
 }
 
 // ResolveDomain godoc
