@@ -1281,74 +1281,9 @@
                 }
             }
         },
-        "/api/tools/certs/self-signed": {
-            "post": {
-                "description": "Genera un certificado X.509 autofirmado con PEM, DER y PFX",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Tools"
-                ],
-                "summary": "Generar certificado autofirmado",
-                "parameters": [
-                    {
-                        "description": "Parametros del certificado",
-                        "name": "payload",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "commonName": {
-                                    "type": "string"
-                                },
-                                "organization": {
-                                    "type": "string"
-                                },
-                                "password": {
-                                    "type": "string"
-                                },
-                                "validDays": {
-                                    "type": "integer"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "certPem, keyPem, certBase64, pfxBase64, password",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
         "/api/tools/dns/blacklist": {
             "get": {
-                "description": "Verifica una IPv4 contra 6 proveedores DNSBL en paralelo",
+                "description": "Verifica una IPv4 contra varios proveedores DNSBL en paralelo. Cada proveedor responde listed, not_listed o error (no se pudo consultar); un error nunca cuenta como \"limpio\"",
                 "produces": [
                     "application/json"
                 ],
@@ -1367,7 +1302,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "ip, results",
+                        "description": "ip, results, summary",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -1383,9 +1318,59 @@
                 }
             }
         },
+        "/api/tools/dns/mail-audit": {
+            "get": {
+                "description": "Evalúa MX, SPF (con conteo de lookups), DKIM, DMARC, MTA-STS y TLS-RPT de un dominio y devuelve hallazgos con severidad y remediación. Un registro que no se pudo consultar se reporta como \"unavailable\", nunca como ausente ni correcto",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "DNS"
+                ],
+                "summary": "Auditar autenticación de correo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Dominio a auditar",
+                        "name": "domain",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Selector DKIM adicional a comprobar",
+                        "name": "selector",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "domain, summary, findings, sections",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/tools/dns/mail-records": {
             "get": {
-                "description": "Consulta registros MX, SPF, DKIM y DMARC de un dominio",
+                "description": "Obsoleto: usa /api/tools/dns/mail-audit. Consulta registros MX, SPF, DKIM y DMARC de un dominio sin evaluarlos",
                 "produces": [
                     "application/json"
                 ],
@@ -1393,6 +1378,7 @@
                     "DNS"
                 ],
                 "summary": "Registros de correo",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -1551,6 +1537,10 @@
                     "items": {
                         "type": "string"
                     }
+                },
+                "thumbUrl": {
+                    "description": "ThumbURL is only filled by the cards view (response-only, never persisted).",
+                    "type": "string"
                 },
                 "title": {
                     "type": "string"

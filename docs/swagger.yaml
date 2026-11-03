@@ -18,6 +18,10 @@ definitions:
         items:
           type: string
         type: array
+      thumbUrl:
+        description: ThumbURL is only filled by the cards view (response-only, never
+          persisted).
+        type: string
       title:
         type: string
       updatedAt:
@@ -877,52 +881,11 @@ paths:
       summary: Codificar Base64
       tags:
       - Tools
-  /api/tools/certs/self-signed:
-    post:
-      consumes:
-      - application/json
-      description: Genera un certificado X.509 autofirmado con PEM, DER y PFX
-      parameters:
-      - description: Parametros del certificado
-        in: body
-        name: payload
-        required: true
-        schema:
-          properties:
-            commonName:
-              type: string
-            organization:
-              type: string
-            password:
-              type: string
-            validDays:
-              type: integer
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: certPem, keyPem, certBase64, pfxBase64, password
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Generar certificado autofirmado
-      tags:
-      - Tools
   /api/tools/dns/blacklist:
     get:
-      description: Verifica una IPv4 contra 6 proveedores DNSBL en paralelo
+      description: Verifica una IPv4 contra varios proveedores DNSBL en paralelo.
+        Cada proveedor responde listed, not_listed o error (no se pudo consultar);
+        un error nunca cuenta como "limpio"
       parameters:
       - description: Direccion IPv4
         in: query
@@ -933,7 +896,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: ip, results
+          description: ip, results, summary
           schema:
             additionalProperties: true
             type: object
@@ -945,9 +908,48 @@ paths:
       summary: Verificar blacklist DNSBL
       tags:
       - DNS
+  /api/tools/dns/mail-audit:
+    get:
+      description: Evalúa MX, SPF (con conteo de lookups), DKIM, DMARC, MTA-STS y
+        TLS-RPT de un dominio y devuelve hallazgos con severidad y remediación. Un
+        registro que no se pudo consultar se reporta como "unavailable", nunca como
+        ausente ni correcto
+      parameters:
+      - description: Dominio a auditar
+        in: query
+        name: domain
+        required: true
+        type: string
+      - description: Selector DKIM adicional a comprobar
+        in: query
+        name: selector
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: domain, summary, findings, sections
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "429":
+          description: Too Many Requests
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Auditar autenticación de correo
+      tags:
+      - DNS
   /api/tools/dns/mail-records:
     get:
-      description: Consulta registros MX, SPF, DKIM y DMARC de un dominio
+      deprecated: true
+      description: 'Obsoleto: usa /api/tools/dns/mail-audit. Consulta registros MX,
+        SPF, DKIM y DMARC de un dominio sin evaluarlos'
       parameters:
       - description: Dominio
         in: query
