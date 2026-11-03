@@ -5,6 +5,7 @@ import (
 	"context"
 	"image/png"
 	"io"
+	"log"
 	"path/filepath"
 	"strings"
 
@@ -70,12 +71,20 @@ func UploadImage(c fiber.Ctx) error {
 	if err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "read_file_failed", "No se pudo leer la imagen", err.Error())
 	}
-	optimized := optimizePNG(contentType, original)
+	optimized := optimizePNG(contentType, downscaleImage(contentType, original))
 
 	ctx := context.Background()
 	publicURL, err := uploadToBucketFunc(ctx, bucket, objectPath, contentType, bytes.NewReader(optimized))
 	if err != nil {
 		return apiresponse.Error(c, fiber.StatusInternalServerError, "upload_failed", "No se pudo subir la imagen", err.Error())
+	}
+
+	// Best-effort card thumbnail next to the cover; the front falls back to the full image.
+	if thumbPath := thumbObjectPath(objectPath); thumbPath != "" {
+		thumb := optimizePNG(contentType, downscaleTo(contentType, optimized, thumbWidth))
+		if _, thumbErr := uploadToBucketFunc(ctx, bucket, thumbPath, contentType, bytes.NewReader(thumb)); thumbErr != nil {
+			log.Printf("[upload] thumbnail %s failed: %v", thumbPath, thumbErr)
+		}
 	}
 
 	// The bucket is private: "url" is the canonical URL to persist, while
