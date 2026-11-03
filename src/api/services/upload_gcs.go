@@ -35,7 +35,6 @@ func resolveServiceAccountEmail() string {
 			return
 		}
 		saEmail = email
-		log.Printf("[upload_gcs] resolved signing SA: %s", saEmail)
 	})
 	return saEmail
 }
