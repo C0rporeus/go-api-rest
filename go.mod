@@ -21,7 +21,6 @@ require (
 	golang.org/x/image v0.36.0
 	google.golang.org/api v0.271.0
 	google.golang.org/grpc v1.79.2
-	software.sslmate.com/src/go-pkcs12 v0.7.0
 )
 
 require (

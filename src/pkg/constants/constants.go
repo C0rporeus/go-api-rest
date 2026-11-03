@@ -44,15 +44,6 @@ const PublicCollectionCacheControl = "public, max-age=60, stale-while-revalidate
 // PublicMediaCacheControl caches immutable uploaded images (object names are UUIDs).
 const PublicMediaCacheControl = "public, max-age=604800, immutable"
 
-// Certificate generation defaults.
-const (
-	DefaultCertCommonName   = "localhost"
-	DefaultCertOrganization = "PortfolioTools"
-	DefaultCertValidDays    = 365
-	DefaultCertPassword     = "changeit"
-	DefaultCertKeyBits      = 2048
-)
-
 // Skill tags used to identify skill-type experiences.
 var SkillTags = []string{
 	"skill", "skills",
@@ -87,9 +78,6 @@ const (
 	MaxImageURLCount   = 10
 	MaxImageURLLength  = 2048 // GCS signed URLs can be long; keep below browser/server limits
 	MaxBase64InputSize = 1_000_000
-	MaxCertCommonName  = 100
-	MaxCertOrgLength   = 100
-	MaxCertValidDays   = 3650
 	MinPasswordLength  = 8
 	MaxPasswordLength  = 128
 	MaxEmailLength     = 254

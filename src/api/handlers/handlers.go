@@ -70,7 +70,6 @@ func SetupRoutes(app *fiber.App, userRepo repository.UserRepository, expRepo rep
 	tools.Post("/base64/encode", services.EncodeBase64)
 	tools.Post("/base64/decode", services.DecodeBase64)
 	tools.Get("/uuid/v4", services.GenerateUUIDv4)
-	tools.Post("/certs/self-signed", services.GenerateSelfSignedCert)
 	tools.Get("/dns/resolve", services.ResolveDomain)
 	tools.Get("/dns/propagation", services.CheckPropagation)
 	tools.Get("/dns/mail-records", services.GetMailRecords)

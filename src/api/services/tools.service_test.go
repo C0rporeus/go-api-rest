@@ -56,27 +56,6 @@ func TestGenerateUUIDv4(t *testing.T) {
 	}
 }
 
-func TestGenerateSelfSignedCert(t *testing.T) {
-	app := fiber.New()
-	app.Post("/cert", GenerateSelfSignedCert)
-
-	body, _ := json.Marshal(map[string]any{
-		"commonName":   "localhost",
-		"organization": "test-org",
-		"validDays":    30,
-		"password":     "changeit",
-	})
-	req := httptest.NewRequest(http.MethodPost, "/cert", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	res, err := app.Test(req)
-	if err != nil {
-		t.Fatalf("unexpected test error: %v", err)
-	}
-	if res.StatusCode != fiber.StatusOK {
-		t.Fatalf("expected 200, got %d", res.StatusCode)
-	}
-}
-
 func postBase64(t *testing.T, handler fiber.Handler, payload map[string]string) (int, map[string]interface{}) {
 	t.Helper()
 	app := fiber.New()

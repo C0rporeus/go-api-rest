@@ -108,7 +108,6 @@ El servidor inicia en `http://localhost:3100`.
 | POST | `/api/tools/base64/encode` | Codificar Base64 |
 | POST | `/api/tools/base64/decode` | Decodificar Base64 |
 | GET | `/api/tools/uuid/v4` | Generar UUID v4 |
-| POST | `/api/tools/certs/self-signed` | Generar certificado autofirmado |
 | GET | `/api/tools/dns/resolve` | Resolución DNS |
 | GET | `/api/tools/dns/propagation` | Propagación DNS por tipo de registro |
 | GET | `/api/tools/dns/mail-records` | Registros MX, SPF, DKIM, DMARC |
