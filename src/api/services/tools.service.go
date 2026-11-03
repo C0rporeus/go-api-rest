@@ -21,6 +21,26 @@ import (
 
 type base64Request struct {
 	Value string `json:"value"`
+	// Variant is "std" (RFC 4648 §4, padded; default) or "url" (RFC 4648 §5,
+	// unpadded, as used by JWT). Decoding "url" also accepts padded input.
+	Variant string `json:"variant"`
+}
+
+const (
+	base64VariantStd = "std"
+	base64VariantURL = "url"
+)
+
+// normalizeBase64Variant validates the variant, defaulting to std.
+func normalizeBase64Variant(variant string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(variant)) {
+	case "", base64VariantStd:
+		return base64VariantStd, true
+	case base64VariantURL:
+		return base64VariantURL, true
+	default:
+		return "", false
+	}
 }
 
 type certRequest struct {
@@ -51,9 +71,19 @@ func EncodeBase64(c fiber.Ctx) error {
 			"El texto excede el tamano maximo permitido", nil)
 	}
 
+	variant, ok := normalizeBase64Variant(payload.Variant)
+	if !ok {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_variant", "La variante debe ser 'std' o 'url'", nil)
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(payload.Value))
+	if variant == base64VariantURL {
+		encoded = base64.RawURLEncoding.EncodeToString([]byte(payload.Value))
+	}
+
 	return apiresponse.Success(c, fiber.Map{
 		"input":   payload.Value,
-		"encoded": base64.StdEncoding.EncodeToString([]byte(payload.Value)),
+		"encoded": encoded,
+		"variant": variant,
 	})
 }
 
@@ -78,7 +108,17 @@ func DecodeBase64(c fiber.Ctx) error {
 			"El texto excede el tamano maximo permitido", nil)
 	}
 
-	decoded, err := base64.StdEncoding.DecodeString(payload.Value)
+	variant, ok := normalizeBase64Variant(payload.Variant)
+	if !ok {
+		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_variant", "La variante debe ser 'std' o 'url'", nil)
+	}
+	var decoded []byte
+	var err error
+	if variant == base64VariantURL {
+		decoded, err = base64.RawURLEncoding.DecodeString(strings.TrimRight(payload.Value, "="))
+	} else {
+		decoded, err = base64.StdEncoding.DecodeString(payload.Value)
+	}
 	if err != nil {
 		return apiresponse.Error(c, fiber.StatusBadRequest, "invalid_base64", "El valor no es base64 valido", err.Error())
 	}
@@ -86,6 +126,7 @@ func DecodeBase64(c fiber.Ctx) error {
 	return apiresponse.Success(c, fiber.Map{
 		"input":   payload.Value,
 		"decoded": string(decoded),
+		"variant": variant,
 	})
 }
 
