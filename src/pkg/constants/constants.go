@@ -23,13 +23,19 @@ const (
 const DefaultDNSTimeout = 5 * time.Second
 
 // DNSBLProviders is the list of DNS blacklist providers used for IP checks.
+// Only lists that answer the canary (127.0.0.2 listed, 127.0.0.1 not listed) are
+// kept. SORBS (decommissioned 2024) and CBL (merged into Spamhaus) were removed;
+// Spamhaus ZEN is excluded because it refuses queries from cloud resolvers
+// without a paid DQS key. SpamRats answered "error" from Cloud Run in the 2026-11-02
+// canary and was removed. Verify with scripts/check_dnsbl_canary.sh after deploys.
 var DNSBLProviders = []string{
-	"zen.spamhaus.org",
 	"bl.spamcop.net",
 	"b.barracudacentral.org",
-	"dnsbl.sorbs.net",
-	"spam.dnsbl.sorbs.net",
-	"cbl.abuseat.org",
+	"dnsbl-1.uceprotect.net",
+	"psbl.surriel.com",
+	"all.s5h.net",
+	"bl.mailspike.net",
+	"dnsbl.dronebl.org",
 }
 
 // Cache-Control header for public collection responses.
