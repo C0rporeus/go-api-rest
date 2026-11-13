@@ -116,3 +116,58 @@ func TestInjectIntoShell(t *testing.T) {
 		t.Errorf("shell without title: got %s", got)
 	}
 }
+
+func TestBlogJSONLDDescribesTheArticleAndCannotCloseTheScript(t *testing.T) {
+	item := models.Experience{
+		ID: "abc", Title: `</script><b>x</b>`, Tags: []string{"blog", "kubernetes"},
+		CreatedAt: "2026-11-02T10:00:00Z", UpdatedAt: "2026-11-03T10:00:00Z",
+	}
+	got, err := blogJSONLD(item, "https://img/x.jpg", "desc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(got, "</script>") != 1 {
+		t.Fatalf("title must not close the script element: %s", got)
+	}
+	for _, want := range []string{`"@type":"BlogPosting"`, `/blog/abc/`, `"datePublished":"2026-11-02T10:00:00Z"`, `"image":"https://img/x.jpg"`, `"keywords":"blog, kubernetes"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("JSON-LD missing %s in %s", want, got)
+		}
+	}
+	if withoutImage, _ := blogJSONLD(models.Experience{ID: "abc"}, "", ""); strings.Contains(withoutImage, `"image"`) {
+		t.Errorf("no image expected: %s", withoutImage)
+	}
+}
+
+func TestBlogStaticArticleEscapesTextAndSanitizesBody(t *testing.T) {
+	got := blogStaticArticle(models.Experience{
+		Title:     `Tokens <JWT> & "claims"`,
+		Summary:   "Resumen <b>plano</b>",
+		Body:      `<h2>Sección</h2><p onclick="x()">Texto</p><script>alert(1)</script>`,
+		CreatedAt: "2026-11-02T10:00:00Z",
+	})
+	for _, want := range []string{
+		`id="` + BlogStaticElementID + `"`,
+		`<h1 class="article-title">Tokens &lt;JWT&gt; &amp; &#34;claims&#34;</h1>`,
+		`Resumen &lt;b&gt;plano&lt;/b&gt;`,
+		`<h2>Sección</h2>`, `<p>Texto</p>`, `>2026-11-02</time>`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("static article missing %q in %s", want, got)
+		}
+	}
+	for _, banned := range []string{"<script", "onclick", "alert(1)"} {
+		if strings.Contains(got, banned) {
+			t.Errorf("static article must not contain %q: %s", banned, got)
+		}
+	}
+}
+
+func TestInjectIntoBody(t *testing.T) {
+	if got := injectIntoBody(`<html><BODY class="a"><div id="__next"></div></body></html>`, "<main>x</main>"); got != `<html><BODY class="a"><main>x</main><div id="__next"></div></body></html>` {
+		t.Errorf("unexpected: %s", got)
+	}
+	if got := injectIntoBody("sin cuerpo", "<main>x</main>"); got != "sin cuerpo" {
+		t.Errorf("a shell without <body> must be returned unchanged: %s", got)
+	}
+}

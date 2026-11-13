@@ -78,7 +78,13 @@ func (s *BlogPageService) RenderArticle(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Could not render the article")
 	}
-	return c.SendString(injectIntoShell(shell, item.Title+" | Blog", head))
+	jsonLD, err := blogJSONLD(item, shareImage, blogMetaDescription(item.Summary, item.Body))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Could not render the article")
+	}
+	// The title and full text also go in the HTML, for crawlers that do not run JavaScript.
+	page := injectIntoShell(shell, item.Title+" | Blog", head+jsonLD+blogStaticHideShellStyle)
+	return c.SendString(injectIntoBody(page, blogStaticArticle(embedded)))
 }
 
 // blogShellCache keeps the shell for a short TTL. Front-end deploys change the
