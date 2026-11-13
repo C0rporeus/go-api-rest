@@ -77,7 +77,8 @@ func (s *SkillService) ListPublicSkills(c fiber.Ctx) error {
 	skills := make([]models.Experience, 0, len(all))
 	for _, item := range all {
 		if item.Visibility == constants.VisibilityPublic && isSkillExperience(item) {
-			skills = append(skills, item)
+			// The landing renders the cover as a 48 px mark: send its thumbnail too.
+			skills = append(skills, withThumbURL(item))
 		}
 	}
 

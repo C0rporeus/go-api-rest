@@ -35,6 +35,12 @@ func toCardView(item userModel.Experience) userModel.Experience {
 		item.Summary = text
 	}
 	item.Body = ""
+	return withThumbURL(item)
+}
+
+// withThumbURL fills ThumbURL with the thumbnail of the cover image when it is
+// hosted in the bucket. Call before signing URLs.
+func withThumbURL(item userModel.Experience) userModel.Experience {
 	if prefix := constants.GCSURLPrefix(); prefix != "" && len(item.ImageURLs) > 0 && strings.HasPrefix(item.ImageURLs[0], prefix) {
 		if thumb := thumbObjectPath(stripQueryParams(item.ImageURLs[0])); thumb != "" {
 			item.ThumbURL = thumb

@@ -52,3 +52,26 @@ func TestThumbObjectPath(t *testing.T) {
 		}
 	}
 }
+
+func TestWithThumbURLOnlyForBucketCovers(t *testing.T) {
+	t.Setenv("GCS_BUCKET_NAME", "bucket-test")
+	prefix := "https://storage.googleapis.com/bucket-test/"
+
+	hosted := withThumbURL(userModel.Experience{
+		Body:      "<p>se conserva</p>",
+		ImageURLs: []string{prefix + "portfolio-images/abc.jpg?X-Goog-Signature=1"},
+	})
+	if want := prefix + "portfolio-images/abc-w640.jpg"; hosted.ThumbURL != want {
+		t.Fatalf("ThumbURL=%q want %q", hosted.ThumbURL, want)
+	}
+	if hosted.Body == "" {
+		t.Fatal("withThumbURL must not drop the body")
+	}
+
+	if external := withThumbURL(userModel.Experience{ImageURLs: []string{"https://x/y.jpg"}}); external.ThumbURL != "" {
+		t.Fatalf("external cover must not get a thumb, got %q", external.ThumbURL)
+	}
+	if empty := withThumbURL(userModel.Experience{}); empty.ThumbURL != "" {
+		t.Fatalf("item without images must not get a thumb, got %q", empty.ThumbURL)
+	}
+}
